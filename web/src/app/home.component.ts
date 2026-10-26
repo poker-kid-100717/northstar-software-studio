@@ -11,14 +11,36 @@ interface Guidance { title: string; checks: string[]; tier: string; note: string
   imports: [RouterLink, FormsModule],
   template: `
     <section class="hero">
-      <p class="eyebrow">NORTHSTAR FIXIQ · SOFTWARE RESCUE</p>
-      <h1>Something broke.<br><em>Let's find the right fix.</em></h1>
-      <p class="lead">When software, integrations, or automations stop working, get a clear starting point and a realistic repair path. No open-ended consulting commitment.</p>
-      <div class="actions"><a class="button primary" href="#fixiq">Try FixIQ triage →</a><a class="button secondary" routerLink="/instant-fixes">Browse $30–$100 fixes</a></div>
+      <div class="hero-content">
+      <div class="hero-copy"><p class="eyebrow">MODERN SOLUTIONS · REAL RESULTS</p>
+      <h1>Future-Driven<br><em>Software Development.</em></h1>
+      <p class="lead">Custom applications, integrations, and AI-enabled solutions that help your business work smarter, move faster, and solve real problems.</p>
+      <div class="actions"><a class="button primary" routerLink="/consultation">Start a project →</a><a class="button hero-outline" routerLink="/instant-fixes">View Instant Fixes</a></div>
+      <div class="hero-benefits"><span>⚡ Focused delivery</span><span>⬡ Transparent scope</span><span>✦ Practical engineering</span></div></div>
+      <div class="hero-visual" aria-label="Illustration of a software solution"><div class="code-window"><div class="code-tabs">C# &nbsp; · &nbsp; .NET &nbsp; · &nbsp; Angular &nbsp; · &nbsp; SQL &nbsp; · &nbsp; AI</div><pre>public class SolutionService
+{
+  public async Task&lt;Result&gt;
+    SolveAsync(Request request)
+  {
+    // Understand. Build. Verify.
+    return await DeliverAsync(request);
+  }
+}</pre></div><div class="hero-status"><strong>✓ &nbsp; Problem solved</strong><span>Identify root cause</span><span>Implement solution</span><span>Verify and document</span></div></div></div>
+    </section>
+    <section class="services-overview section" id="services">
+      <p class="eyebrow">WHAT WE DO</p><h2>Solutions for real business challenges.</h2>
+      <div class="cards">
+        <article class="card service-tile"><div class="service-icon" aria-hidden="true">⌘</div><h3>Custom Software Development</h3><p>Modern web applications, APIs, integrations, and workflow automation built around .NET, Angular, and cloud technology.</p><a routerLink="/consultation">Discuss a project →</a></article>
+        <article class="card service-tile"><div class="service-icon" aria-hidden="true">ϟ</div><h3>Instant Fixes</h3><p>Small, defined-scope code, data, and integration issues. Transparent $30, $50, and $100 service tiers.</p><a routerLink="/instant-fixes">Browse fixes →</a></article>
+        <article class="card service-tile"><div class="service-icon" aria-hidden="true">✧</div><h3>Consulting &amp; Project Inquiries</h3><p>Something larger or unusual? Share your goals, budget, and timeline for an individual scope review.</p><a routerLink="/consultation">Get in touch →</a></article>
+      </div>
+    </section>
+    <section class="featured section"><div class="feature-intro"><p class="eyebrow">FEATURED SERVICE</p><h2>Instant Fixes</h2><p class="lead">One reproducible issue. One defined deliverable. An agreed price before work begins.</p><a class="button primary" routerLink="/instant-fixes">Browse all fixes →</a></div>
+      <div class="price-tiers"><article class="price-tier"><strong>$30</strong><span>QUICK FIXES</span><p>Syntax, formatting, validation, and simple request issues.</p></article><article class="price-tier"><strong>$50</strong><span>TARGETED FIXES</span><p>Isolated code bugs, API troubleshooting, data mappings, and UI fixes.</p></article><article class="price-tier"><strong>$100</strong><span>ADVANCED FIXES</span><p>Single-query tuning, webhook, automation, and pipeline investigations.</p></article></div>
     </section>
     <section id="fixiq" class="section">
-      <p class="eyebrow">START HERE · NO ACCOUNT REQUIRED</p>
-      <h2>Tell us what's broken.</h2>
+      <p class="eyebrow">FIXIQ · FREE SELF-SERVICE TRIAGE</p>
+      <h2>Have something broken? Start here.</h2>
       <p class="lead">A private, in-browser preliminary assessment. We don't send this description to a server. Do not enter passwords, API keys, patient records, or customer personal information.</p>
       <form class="fixiq-panel" (ngSubmit)="assess()">
         <label for="problem">Describe the issue</label>
@@ -47,16 +69,17 @@ interface Guidance { title: string; checks: string[]; tier: string; note: string
         </section>
       }
     </section>
-    <section class="section" id="consulting">
+    <section class="section next-step" id="consulting">
       <p class="eyebrow">FOCUSED REPAIRS · DOCUMENTED RESULTS</p>
-      <h2>Small problems deserve a clear solution.</h2>
+      <h2>Need a bigger solution?</h2>
       <div class="cards">
         <article class="card"><h3>Instant Fixes</h3><p>Clearly scoped code, SQL, API, and automation fixes from $30 to $100.</p><a routerLink="/instant-fixes">See fixed-price options →</a></article>
-        <article class="card"><h3>Integration rescue</h3><p>Investigate failed webhooks, missing CRM leads, broken data syncs, and invoice workflows.</p><span class="muted">Quoted after scope review · Not yet available for purchase</span></article>
-        <article class="card"><h3>AI-built app stabilization</h3><p>Make fragile prototypes safer to maintain through targeted debugging, tests, and deployment reviews.</p><span class="muted">Quoted after scope review · Not yet available for purchase</span></article>
+        <article class="card"><h3>Integration rescue</h3><p>Investigate failed webhooks, missing CRM leads, broken data syncs, and invoice workflows.</p><a routerLink="/consultation">Request scope review →</a></article>
+        <article class="card"><h3>AI-built app stabilization</h3><p>Make fragile prototypes safer to maintain through targeted debugging, tests, and deployment reviews.</p><a routerLink="/consultation">Discuss your application →</a></article>
       </div>
       <p class="fineprint">FixIQ Watch monitoring is on the roadmap. We do not currently offer 24/7 monitoring, guaranteed response times, or automatic repairs.</p>
     </section>
+    <section class="tech-strip" aria-label="Technologies"><span>TECHNOLOGIES</span><strong>.NET</strong><strong>Angular</strong><strong>SQL Server</strong><strong>Azure</strong><strong>Docker</strong><strong>AI Integrations</strong><strong>GitHub Actions</strong><strong>Cloudflare</strong></section>
   `
 })
 export class HomeComponent {
