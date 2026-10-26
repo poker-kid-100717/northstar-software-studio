@@ -9,10 +9,10 @@ import { inject } from '@angular/core';
   imports: [FormsModule],
   template: `
     <section class="page">
-      <p class="eyebrow">LET'S DISCUSS YOUR PROJECT</p>
-      <h1>Tell us what you need. We’ll help you find a path forward.</h1>
-      <p class="lead">No technical jargon required. Explain what isn’t working or what you want to achieve. We’ll review your request and follow up by email before any work or charges.</p>
-      <div class="consultation-trust" aria-label="What to expect"><span>✓ Free to ask</span><span>✓ No payment required</span><span>✓ Human scope review</span></div>
+      <p class="eyebrow">YOUR IDEA STARTS HERE</p>
+      <h1>What would you like to create?</h1>
+      <p class="lead">You can start with an idea, a sketch, an existing app, or a problem you want to fix. Tell us what matters to you in your own words. We'll listen, explore options together, and discuss scope before any work or charges.</p>
+      <div class="consultation-trust" aria-label="What to expect"><span>✓ Free to ask</span><span>✓ No payment required</span><span>✓ Your goals come first</span></div>
       @if (sent) {
         <section class="consultation-success" role="status" aria-live="polite" tabindex="-1">
           <span class="consultation-success-icon" aria-hidden="true">✓</span>
@@ -24,35 +24,35 @@ import { inject } from '@angular/core';
         </section>
       } @else {
       <form class="fixiq-panel" (ngSubmit)="submit()" #inquiryForm="ngForm">
-        <div class="consultation-step"><span>01 / Your details</span><span>02 / Your project</span><span>03 / Review & send</span></div>
+        <div class="consultation-step"><span>01 / Your details</span><span>02 / Your vision</span><span>03 / Review & send</span></div>
         <label for="contactName">Your name</label>
         <input id="contactName" name="contactName" [(ngModel)]="contactName" required maxlength="100" autocomplete="name" placeholder="How should we address you?">
         <label for="contactEmail">Email address</label>
         <input id="contactEmail" name="contactEmail" [(ngModel)]="contactEmail" type="email" required email maxlength="254" autocomplete="email" placeholder="you@example.com" aria-describedby="email-help">
         <p class="consultation-hint" id="email-help">We’ll only use this to respond to your request.</p>
-        <label for="projectType">What can we help with?</label>
+        <label for="projectType">Where would you like to start?</label>
         <select id="projectType" name="projectType" [(ngModel)]="projectType" required>
-          <option value="software-repair">Software repair / debugging</option>
-          <option value="integration">API / integration</option>
-          <option value="automation">Automation / workflow</option>
-          <option value="application">Application development</option>
-          <option value="other">Other / unsure</option>
+          <option value="software-repair">Fix or improve existing software</option>
+          <option value="integration">Connect tools or services</option>
+          <option value="automation">Make a process easier</option>
+          <option value="application">Build something new</option>
+          <option value="other">Explore an idea / not sure yet</option>
         </select>
         @if (selectedService) { <p class="catalog-request-context"><strong>Selected service:</strong> {{ selectedService }} · &#36;{{ selectedPrice }} starting price, subject to scope review</p> }
-        <label for="projectDescription">What’s happening, and what would a good outcome look like?</label>
-        <p class="consultation-hint" id="description-help">A few sentences are enough. Include any error messages, the system involved, and what you have already tried. Please leave out passwords and private data.</p>
-        <textarea id="projectDescription" name="projectDescription" [(ngModel)]="projectDescription" required minlength="30" maxlength="3000" rows="6" aria-describedby="description-help description-count" placeholder="For example: Our two tools aren’t sharing order data. We need a reliable way to sync new orders without entering them twice."></textarea>
+        <label for="projectDescription">Tell us about your idea or what you'd like to change</label>
+        <p class="consultation-hint" id="description-help">A few sentences are enough. What would you love to make possible? If something is broken, you can describe that too. No technical experience required. Please leave out passwords and private data.</p>
+        <textarea id="projectDescription" name="projectDescription" [(ngModel)]="projectDescription" required minlength="30" maxlength="3000" rows="6" aria-describedby="description-help description-count" placeholder="For example: I have an idea for an app that helps my customers book appointments. I know what I want it to do, but I'm not sure where to start."></textarea>
         <p class="consultation-count" id="description-count">{{ projectDescription.length }} / 3000 characters <span>· Minimum 30</span></p>
         <div class="fixiq-fields">
-          <div><label for="budget">Approximate budget</label><select id="budget" name="budget" [(ngModel)]="budget"><option value="unsure">Not sure yet</option><option value="under-250">Under $250</option><option value="250-1000">$250–$1,000</option><option value="1000-5000">$1,000–$5,000</option><option value="5000-plus">$5,000+</option></select></div>
-          <div><label for="timeline">Timeline</label><select id="timeline" name="timeline" [(ngModel)]="timeline"><option value="flexible">Flexible</option><option value="this-week">This week</option><option value="2-4-weeks">2–4 weeks</option><option value="later">Later</option></select></div>
+          <div><label for="budget">Budget (optional)</label><select id="budget" name="budget" [(ngModel)]="budget"><option value="unsure">Not sure yet</option><option value="under-250">Under $250</option><option value="250-1000">$250–$1,000</option><option value="1000-5000">$1,000–$5,000</option><option value="5000-plus">$5,000+</option></select></div>
+          <div><label for="timeline">Ideal timeline</label><select id="timeline" name="timeline" [(ngModel)]="timeline"><option value="flexible">Flexible</option><option value="this-week">This week</option><option value="2-4-weeks">2–4 weeks</option><option value="later">Later</option></select></div>
         </div>
         <div class="inquiry-honeypot" aria-hidden="true"><label for="website">Website</label><input id="website" name="website" [(ngModel)]="website" tabindex="-1" autocomplete="off"></div>
         <div class="consultation-verify"><strong>One last step</strong><p class="consultation-hint">Complete the quick security check to help keep spam out.</p><div id="northstar-turnstile" aria-label="Spam verification"></div></div>
         @if (verificationMessage) { <p class="fineprint" role="status">{{ verificationMessage }}</p> }
         <p class="fineprint">Do not include passwords, API keys, patient information, or confidential customer data. Sending an inquiry does not create a service agreement.</p>
-        <button class="button primary consultation-submit" type="submit" [disabled]="inquiryForm.invalid || submitting || !turnstileToken">{{ submitting ? 'Sending your request…' : 'Send my request →' }}</button>
-        <p class="consultation-hint">No commitment. No charge. We’ll discuss next steps with you first.</p>
+        <button class="button primary consultation-submit" type="submit" [disabled]="inquiryForm.invalid || submitting || !turnstileToken">{{ submitting ? 'Sending your request…' : 'Share my idea →' }}</button>
+        <p class="consultation-hint">Your idea stays yours. No commitment or charge for reaching out. We'll discuss next steps together.</p>
         @if (message) { <p class="consultation-feedback" [class.error]="error" role="alert" aria-live="assertive">{{ message }}</p> }
       </form>
       }
@@ -63,7 +63,7 @@ export class ConsultationComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   readonly selectedService = (this.route.snapshot.queryParamMap.get("service") ?? "").slice(0,120);
   readonly selectedPrice = [30,50,100].includes(Number(this.route.snapshot.queryParamMap.get("price"))) ? Number(this.route.snapshot.queryParamMap.get("price")) : 0;
-  contactName = ''; contactEmail = ''; projectType = 'software-repair'; projectDescription = '';
+  contactName = ''; contactEmail = ''; projectType = 'other'; projectDescription = '';
   budget = 'unsure'; timeline = 'flexible'; website = '';
   constructor() { if (this.selectedService) this.projectDescription = 'I would like help with: ' + this.selectedService + '.\n\nHere is what is happening: '; }
   submitting = false; error = false; message = ''; sent = false; submittedEmail = ''; reference = ''; notificationPending = false;
