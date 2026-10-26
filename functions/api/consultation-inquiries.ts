@@ -1,4 +1,4 @@
-interface Env { RESEND_API_KEY?: string; CONSULTATION_FROM_EMAIL?: string; TURNSTILE_SITE_KEY?: string; TURNSTILE_SECRET_KEY?: string; INQUIRY_RATE_LIMITER?: { limit(input: { key: string }): Promise<{ success: boolean }> }; }
+interface Env { RESEND_API_KEY?: string; CONSULTATION_FROM_EMAIL?: string; TURNSTILE_SITE_KEY?: string; TURNSTILE_SECRET_KEY?: string; }
 interface Inquiry { name?: unknown; email?: unknown; projectType?: unknown; description?: unknown; budget?: unknown; timeline?: unknown; website?: unknown; turnstileToken?: unknown; }
 const allowedTypes = new Set(['software-repair','integration','automation','application','other']);
 const allowedBudgets = new Set(['unsure','under-250','250-1000','1000-5000','5000-plus']);
@@ -28,21 +28,16 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!name || name.length > 100 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 ||
       description.length < 30 || description.length > 3000 || !allowedTypes.has(projectType) ||
       !allowedBudgets.has(budget) || !allowedTimelines.has(timeline)) return json('INVALID_INQUIRY',400);
-  if (!env.RESEND_API_KEY || !env.CONSULTATION_FROM_EMAIL || !env.TURNSTILE_SECRET_KEY || !env.INQUIRY_RATE_LIMITER)
+  if (!env.RESEND_API_KEY || !env.CONSULTATION_FROM_EMAIL || !env.TURNSTILE_SECRET_KEY)
     return json('INQUIRY_NOT_CONFIGURED',503);
   const ip = request.headers.get('CF-Connecting-IP');
-  if (!ip) return json('REQUEST_NOT_VERIFIABLE',403);
-  try {
-    const allowed = await env.INQUIRY_RATE_LIMITER.limit({ key: ip });
-    if (!allowed.success) return json('RATE_LIMITED',429);
-  } catch { return json('RATE_LIMIT_UNAVAILABLE',503); }
   const token = typeof body.turnstileToken === 'string' ? body.turnstileToken : '';
   if (!token || token.length > 2048) return json('VERIFICATION_REQUIRED',400);
   try {
     const form = new FormData();
     form.set('secret', env.TURNSTILE_SECRET_KEY);
     form.set('response', token);
-    form.set('remoteip', ip);
+    if (ip) form.set('remoteip', ip);
     const verification = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', { method: 'POST', body: form });
     if (!verification.ok) return json('VERIFICATION_UNAVAILABLE',503);
     const result = await verification.json() as { success?: boolean; hostname?: string };
