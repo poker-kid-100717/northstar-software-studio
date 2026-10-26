@@ -27,6 +27,7 @@ CREATE INDEX IF NOT EXISTS idx_service_quotes_status ON service_quotes(status,ex
 CREATE TABLE IF NOT EXISTS service_orders (
   id TEXT PRIMARY KEY NOT NULL,
   quote_id TEXT NOT NULL UNIQUE REFERENCES service_quotes(id) ON DELETE RESTRICT,
+  consult INTEGER NOT NULL DEFAULT 0 CHECK (consult IN (0, 1)), -- 1 = consultation, 0 = other service
   status TEXT NOT NULL DEFAULT 'awaiting_payment' CHECK (status IN ('awaiting_payment','paid','in_progress','delivered','revision','completed','cancelled','refunded')),
   currency TEXT NOT NULL DEFAULT 'usd' CHECK (currency = 'usd'),
   amount_cents INTEGER NOT NULL CHECK (amount_cents BETWEEN 1 AND 100000000),
