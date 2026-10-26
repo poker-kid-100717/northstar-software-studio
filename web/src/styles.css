@@ -11,3 +11,8 @@
 .fixiq-result li{margin:10px 0;line-height:1.55}
 .fixiq-result .fineprint{line-height:1.6}
 @media(max-width:650px){.fixiq-fields{grid-template-columns:1fr}.fixiq-panel,.fixiq-result{padding:20px}}
+
+/* Consultation intake */
+.fixiq-panel input:not([type="checkbox"]){width:100%;font:inherit;border:1px solid #b9c7dc;border-radius:9px;padding:13px;background:#fff;color:#15233b;margin-bottom:20px}
+.fixiq-panel>select,.fixiq-panel>textarea{margin-bottom:20px}
+.inquiry-honeypot{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
