@@ -18,6 +18,10 @@ if (app.Environment.IsDevelopment())
     await db.Database.MigrateAsync();
     await ProductSeed.SeedAsync(db);
 }
+// Explicit opt-in for seeding the catalog on a deployed instance. Never applies migrations.
+// Production migrations must be applied by a separate, controlled deployment step.
+if (!app.Environment.IsDevelopment() && builder.Configuration.GetValue<bool>("Catalog:SeedOnStartup"))
+    await DbInitializer.InitializeAsync(app.Services);
 app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "Northstar Software Studio" }));
 app.MapGet("/api/instant-fixes", async (NorthstarDbContext db, CancellationToken ct) =>
     await db.ServiceProducts.AsNoTracking().Where(p => p.IsActive)
