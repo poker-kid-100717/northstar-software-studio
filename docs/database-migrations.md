@@ -23,3 +23,7 @@ After the initial migration is committed, use `dotnet ef database update --proje
 ## Stripe checkout validation
 
 Payments stay off by default. Test using a separate disposable database and Stripe test-mode keys. Verify pending order creation, checkout redirect, signed webhook, duplicate event replay, expired reservations, invalid signatures and capacity exhaustion. Never commit credentials or real customer data.
+
+## Automated checks
+
+GitHub Actions runs a disposable PostgreSQL 17 database and executes `tests/Northstar.IntegrationTests`. The suite intentionally uses `EnsureCreated` only in its isolated `northstar_test` database to validate current model behavior; it is **not** a migration test. Versioned migrations and a migration upgrade test are still required before production. Never enable live checkout based solely on this test suite.
