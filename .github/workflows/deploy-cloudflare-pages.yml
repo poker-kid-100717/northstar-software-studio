@@ -44,15 +44,18 @@ jobs:
           find dist/northstar/browser -maxdepth 2 -type f | sort | head -50
           test "$(find dist/northstar/browser -maxdepth 1 -name 'main-*.js' | wc -l)" -gt 0
           echo 'Angular HTML and main JS bundle verified.'
-      - name: Verify Pages Functions source
+      - name: Stage Pages Functions alongside Angular project
         run: |
           set -eu
-          test -s ../functions/api/[[path]].ts
-          echo 'Pages Functions source exists at repository root.'
+          mkdir -p functions
+          cp -R ../functions/. functions/
+          test -s functions/api/consultation-inquiries.ts
+          test -s 'functions/api/[[path]].ts'
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy web/dist/northstar/browser --project-name=northstar-software-studio --branch=main
+          workingDirectory: web
+          command: pages deploy dist/northstar/browser --project-name=northstar-software-studio --branch=main
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
