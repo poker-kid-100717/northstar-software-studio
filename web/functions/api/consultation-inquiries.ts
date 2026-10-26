@@ -1,4 +1,5 @@
-interface Env { RESEND_API_KEY?: string; CONSULTATION_FROM_EMAIL?: string; TURNSTILE_SITE_KEY?: string; TURNSTILE_SECRET_KEY?: string; }
+interface InquiryDb { prepare(sql: string): { bind(...values: unknown[]): { run(): Promise<unknown> } } }
+interface Env { INQUIRIES_DB?: InquiryDb; RESEND_API_KEY?: string; CONSULTATION_FROM_EMAIL?: string; TURNSTILE_SITE_KEY?: string; TURNSTILE_SECRET_KEY?: string; }
 interface Inquiry { name?: unknown; email?: unknown; projectType?: unknown; description?: unknown; budget?: unknown; timeline?: unknown; website?: unknown; turnstileToken?: unknown; }
 const allowedTypes = new Set(['software-repair','integration','automation','application','other']);
 const allowedBudgets = new Set(['unsure','under-250','250-1000','1000-5000','5000-plus']);
@@ -47,7 +48,20 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const result = await verification.json() as { success?: boolean; hostname?: string };
     if (!result.success || result.hostname !== new URL(request.url).hostname) return json('VERIFICATION_FAILED',403);
   } catch { return json('VERIFICATION_UNAVAILABLE',503); }
-  const text = ['New Northstar consultation inquiry', 'Name: '+name, 'Email: '+email,
+  const inquiryId = crypto.randomUUID();
+  let stored = false;
+  if (env.INQUIRIES_DB) {
+    try {
+      await env.INQUIRIES_DB.prepare(
+        'INSERT INTO consultation_inquiries (id,contact_name,contact_email,project_type,description,budget,timeline) VALUES (?,?,?,?,?,?,?)'
+      ).bind(inquiryId,name,email,projectType,description,budget,timeline).run();
+      stored = true;
+    } catch {
+      // Never send a notification for an inquiry that failed to persist when D1 is configured.
+      return json('INQUIRY_STORAGE_UNAVAILABLE',503);
+    }
+  }
+  const text = ['New Northstar consultation inquiry', 'Reference: '+inquiryId, 'Name: '+name, 'Email: '+email,
     'Project type: '+projectType, 'Budget: '+budget, 'Timeline: '+timeline, '', 'Description:', description].join('\n');
   try {
     const upstream = await fetch('https://api.resend.com/emails', {
@@ -56,7 +70,24 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       body: JSON.stringify({ from: env.CONSULTATION_FROM_EMAIL, to: [recipient],
         reply_to: email, subject: 'Northstar consultation inquiry: '+projectType, text })
     });
-    if (!upstream.ok) return json('DELIVERY_FAILED',502);
-    return Response.json({ ok: true }, { headers: { 'Cache-Control': 'no-store' } });
-  } catch { return json('DELIVERY_FAILED',502); }
+    if (!upstream.ok) {
+      if (!stored) return json('DELIVERY_FAILED',502);
+      await updateNotification('failed');
+      return Response.json({ ok: true, reference: inquiryId, stored: true, notification: 'pending' }, { headers: { 'Cache-Control': 'no-store' } });
+    }
+    if (stored) await updateNotification('sent');
+    return Response.json({ ok: true, reference: inquiryId, stored, notification: 'sent' }, { headers: { 'Cache-Control': 'no-store' } });
+  } catch {
+    if (!stored) return json('DELIVERY_FAILED',502);
+    await updateNotification('failed');
+    return Response.json({ ok: true, reference: inquiryId, stored: true, notification: 'pending' }, { headers: { 'Cache-Control': 'no-store' } });
+  }
+  async function updateNotification(status: 'sent' | 'failed'): Promise<void> {
+    try {
+      await env.INQUIRIES_DB?.prepare('UPDATE consultation_inquiries SET notification_status = ?, notification_attempts = notification_attempts + 1, updated_at = ? WHERE id = ?')
+        .bind(status, new Date().toISOString(), inquiryId).run();
+    } catch {
+      // The original inquiry remains durable; reconcile notification status separately.
+    }
+  }
 };
