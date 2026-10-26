@@ -16,6 +16,7 @@ public sealed class NorthstarDbContext(DbContextOptions<NorthstarDbContext> opti
         b.Entity<ServiceProduct>().HasIndex(x => new { x.IsActive, x.DisplayOrder });
         b.Entity<ServiceOrder>().HasIndex(x => new { x.Status, x.CreatedAt });
         b.Entity<ServiceOrder>().HasIndex(x => x.CustomerEmail);
+        b.Entity<ServiceOrder>().HasIndex(x => x.StripeCheckoutSessionId).IsUnique();
         b.Entity<PaymentTransaction>().HasIndex(x => new { x.Provider, x.ProviderEventId }).IsUnique();
         b.Entity<OrderStatusHistory>().HasIndex(x => new { x.ServiceOrderId, x.CreatedAt });
         b.Entity<ServiceProduct>().Property(x => x.EstimatedHours).HasPrecision(7, 2);
