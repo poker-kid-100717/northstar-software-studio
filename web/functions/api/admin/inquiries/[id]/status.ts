@@ -1,17 +1,6 @@
 import { authorize } from '../../inquiries';
 
-interface Env {
-  INQUIRIES_DB?: {
-    prepare(sql: string): {
-      bind(...values: unknown[]): {
-        run(): Promise<{ meta?: { changes?: number } }>;
-      };
-    };
-  };
-  CF_ACCESS_TEAM_DOMAIN?: string;
-  CF_ACCESS_AUD?: string;
-  CF_ACCESS_ADMIN_EMAIL?: string;
-}
+type Env = Parameters<typeof authorize>[1];
 const statuses = new Set(['new', 'reviewing', 'contacted', 'qualified', 'quoted', 'won', 'lost', 'archived']);
 const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
 const json = (data: object, status = 200) => Response.json(data, { status, headers });
