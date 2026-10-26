@@ -47,8 +47,6 @@ jobs:
       - name: Stage Pages Functions alongside Angular project
         run: |
           set -eu
-          mkdir -p functions
-          cp -R ../functions/. functions/
           test -s functions/api/consultation-inquiries.ts
           test -s 'functions/api/[[path]].ts'
       - name: Deploy to Cloudflare Pages
