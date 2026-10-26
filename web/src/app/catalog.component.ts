@@ -81,7 +81,7 @@ const services: Fix[] = [
       <div class="catalog-wrap">
         <p class="eyebrow">SMALL SOFTWARE PROBLEMS · CLEAR STARTING PRICES</p>
         <h1>Find the right fix.</h1>
-        <p class="lead">Not sure what the technical problem is called? Start with what is going wrong. Browse 65 focused services, see exactly what is included, and request a scope review before committing.</p>
+        <p class="lead">Not sure what the technical problem is called? Start with what is going wrong. Explore focused services, see what's included, and ask about the right fit before committing.</p>
         <div class="catalog-trust"><span>✓ Clear deliverables</span><span>✓ Scope reviewed first</span><span>✓ No passwords or production credentials</span></div>
       </div>
     </section>
@@ -91,6 +91,7 @@ const services: Fix[] = [
         <input id="fix-search" type="search" [(ngModel)]="query" placeholder="Try: website, API, spreadsheet, SQL, C#, deployment…" autocomplete="off">
         <p class="fineprint">Search by the problem you are experiencing, not just a technical term.</p>
       </div>
+      <p class="catalog-intro">Not sure which service fits? That's okay. These are starting points, not limits on what we can build together.</p>
       <div class="catalog-controls">
         <div class="filter-block"><strong>Budget</strong><div class="filters" aria-label="Filter by price">
           @for (t of tiers; track t.label) { <button type="button" [class.selected]="tier===t.value" [attr.aria-pressed]="tier===t.value" (click)="tier=t.value">{{t.label}}</button> }
@@ -99,9 +100,9 @@ const services: Fix[] = [
           @for (c of categories; track c) { <button type="button" [class.selected]="category===c" [attr.aria-pressed]="category===c" (click)="category=c">{{c}}</button> }
         </div></div>
       </div>
-      <div class="catalog-results-heading"><div><p class="eyebrow">EXPLORE SERVICES</p><h2>{{filtered.length}} matching {{filtered.length===1?'fix':'fixes'}}</h2></div><button class="catalog-clear" type="button" (click)="clear()" [disabled]="!query && tier==='All' && category==='All'">Clear filters</button></div>
+      <div class="catalog-results-heading" aria-live="polite"><div><p class="eyebrow">EXPLORE SERVICES</p><h2>{{filtered.length}} matching {{filtered.length===1?'fix':'fixes'}}</h2></div><button class="catalog-clear" type="button" (click)="clear()" [disabled]="!query && tier==='All' && category==='All'">Clear filters</button></div>
       @if (filtered.length===0) {
-        <div class="catalog-empty"><h3>Can't find an exact match?</h3><p>Tell us what's happening and we'll help determine whether a small fix is appropriate.</p><a class="button primary" routerLink="/consultation">Describe your problem →</a></div>
+        <div class="catalog-empty"><h3>Can't find an exact match?</h3><p>You don't need to know the technical name. Share what you want to change or create, and we'll explore options with you.</p><a class="button primary" routerLink="/consultation">Tell us your idea →</a></div>
       }
       <div class="catalog-grid">
         @for (fix of filtered; track fix.title) {
@@ -114,7 +115,7 @@ const services: Fix[] = [
           </article>
         }
       </div>
-      <div class="catalog-guidance"><div><p class="eyebrow">NOT SURE WHERE TO START?</p><h2>Describe the issue. We'll help with the scope.</h2><p>Each price covers one narrowly defined issue. Complex or unclear requests are quoted separately. Work starts only after scope and availability are confirmed.</p></div><a class="button primary" routerLink="/consultation">Request a scope review →</a></div>
+      <div class="catalog-guidance"><div><p class="eyebrow">NOT SURE WHERE TO START?</p><h2>Have something else in mind? Let's talk.</h2><p>These fixed-price options cover narrowly defined issues. If your idea is bigger, different, or still taking shape, tell us about it. We'll discuss the scope and price together before any work begins.</p></div><a class="button primary" routerLink="/consultation">Discuss your idea →</a></div>
       <p class="fineprint catalog-disclaimer">Prices are proposed starting prices, not automatic purchase offers. One reasonable revision within the accepted scope; estimated turnaround is discussed after review. No payment is collected here. Never send secrets, credentials, protected health information, or confidential customer data.</p>
     </section>
   `
