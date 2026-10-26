@@ -9,7 +9,7 @@ public sealed class CapacityOptions
 }
 public static class CapacityPolicy
 {
-    private static readonly OrderStatus[] OpenStatuses = [OrderStatus.Paid, OrderStatus.AwaitingReview, OrderStatus.Accepted, OrderStatus.NeedsClarification, OrderStatus.InProgress, OrderStatus.Delivered];
+    private static readonly OrderStatus[] OpenStatuses = [OrderStatus.PendingPayment, OrderStatus.Paid, OrderStatus.AwaitingReview, OrderStatus.Accepted, OrderStatus.NeedsClarification, OrderStatus.InProgress, OrderStatus.Delivered];
     public static async Task<(bool Available, string? Reason)> CheckAsync(NorthstarDbContext db, ServiceProduct product, CapacityOptions limits, DateTimeOffset now, CancellationToken ct = default)
     {
         if (!product.IsActive || !product.PaymentEligible) return (false, "This service is not currently accepting purchases.");
