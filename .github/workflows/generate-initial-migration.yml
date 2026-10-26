@@ -15,6 +15,8 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+      - name: Restore API NuGet packages
+        run: dotnet restore src/Northstar.Api/Northstar.Api.csproj
       - name: Install EF Core CLI
         run: dotnet tool install --global dotnet-ef --version 10.0.0
       - name: Generate initial migration only if missing
