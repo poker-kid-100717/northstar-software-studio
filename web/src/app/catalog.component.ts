@@ -56,7 +56,7 @@ const services: Fix[] = [
       <div class="catalog-grid">
         @for (fix of filtered; track fix.title) {
           <article class="catalog-card">
-            <div class="catalog-card-top"><span class="catalog-category">{{fix.category}}</span><span class="catalog-price">${{fix.price}}</span></div>
+            <div class="catalog-card-top"><span class="catalog-category">{{fix.category}}</span><span class="catalog-price">&#36;{{fix.price}}</span></div>
             <h3>{{fix.title}}</h3>
             <p class="catalog-problem">“{{fix.problem}}”</p>
             <div class="catalog-card-body"><p><strong>What you get</strong>{{fix.outcome}}</p><p><strong>Defined scope</strong>{{fix.scope}}</p></div>
