@@ -56,9 +56,11 @@ export class ConsultationComponent implements OnInit, OnDestroy {
   async ngOnInit(): Promise<void> {
     try {
       const response = await fetch('/api/consultation-inquiries', { cache: 'no-store' });
-      if (!response.ok) throw new Error('Verification configuration unavailable');
+      if (!response.ok) throw new Error(`Verification endpoint returned HTTP ${response.status}`);
+      const contentType = response.headers.get('content-type') ?? '';
+      if (!contentType.includes('application/json')) throw new Error('Verification endpoint returned a web page instead of JSON');
       const config = await response.json() as { siteKey?: string | null };
-      if (!config.siteKey || this.destroyed) throw new Error('Verification not configured');
+      if (!config.siteKey || this.destroyed) throw new Error('Turnstile site key is missing from the deployed configuration');
       if (!window.turnstile) {
         await new Promise<void>((resolve, reject) => {
           const script = document.createElement('script');
@@ -76,7 +78,13 @@ export class ConsultationComponent implements OnInit, OnDestroy {
         'error-callback': () => { this.turnstileToken = ''; this.verificationMessage = 'Verification unavailable. Please refresh.'; }
       });
       this.verificationMessage = '';
-    } catch { if (!this.destroyed) this.verificationMessage = 'Verification is currently unavailable. Please try again later.'; }
+    } catch (cause) {
+      if (!this.destroyed) {
+        const detail = cause instanceof Error ? cause.message : 'Unknown verification error';
+        console.error('Consultation verification initialization failed:', detail);
+        this.verificationMessage = `Verification unavailable: ${detail}. Please refresh or contact us directly.`;
+      }
+    }
   }
   ngOnDestroy(): void { this.destroyed = true; if (this.widgetId && window.turnstile) window.turnstile.remove(this.widgetId); }
 
