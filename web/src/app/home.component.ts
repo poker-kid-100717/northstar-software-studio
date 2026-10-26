@@ -18,14 +18,14 @@ interface Guidance { title: string; checks: string[]; tier: string; note: string
       <div class="actions"><a class="button primary" routerLink="/consultation">Start a project →</a><a class="button hero-outline" routerLink="/instant-fixes">View Instant Fixes</a></div>
       <div class="hero-benefits"><span>⚡ Focused delivery</span><span>⬡ Transparent scope</span><span>✦ Practical engineering</span></div></div>
       <div class="hero-visual" aria-label="Illustration of a software solution"><div class="code-window"><div class="code-tabs">C# &nbsp; · &nbsp; .NET &nbsp; · &nbsp; Angular &nbsp; · &nbsp; SQL &nbsp; · &nbsp; AI</div><pre>public class SolutionService
-{
+&#123;
   public async Task&lt;Result&gt;
     SolveAsync(Request request)
-  {
+  &#123;
     // Understand. Build. Verify.
     return await DeliverAsync(request);
-  }
-}</pre></div><div class="hero-status"><strong>✓ &nbsp; Problem solved</strong><span>Identify root cause</span><span>Implement solution</span><span>Verify and document</span></div></div></div>
+  &#125;
+&#125;</pre></div><div class="hero-status"><strong>✓ &nbsp; Problem solved</strong><span>Identify root cause</span><span>Implement solution</span><span>Verify and document</span></div></div></div>
     </section>
     <section class="services-overview section" id="services">
       <p class="eyebrow">WHAT WE DO</p><h2>Solutions for real business challenges.</h2>
