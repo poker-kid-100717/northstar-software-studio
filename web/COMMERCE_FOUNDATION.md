@@ -12,6 +12,7 @@ This migration adds **data structures only**. It does not enable payments, creat
 ## Intended lifecycle
 
 - A customer submits an **inquiry** (no purchase).
+- Each order has a `consult` flag: `1` means consultation; `0` means another service. SQLite stores this bit as an INTEGER constrained to 0 or 1; the default is 0. The order-creation API must set it deliberately for consultation orders.
 - An administrator creates a **draft quote**, explicitly approves its deliverables, exclusions, amount in USD cents and expiry, and sends it.
 - A customer accepts an unexpired approved quote. A single order is then created for the immutable accepted quote version.
 - Payment is performed through Stripe-hosted checkout **only after** server-side price/quote verification. A signed, deduplicated Stripe webhook is the source of truth for paid status.
