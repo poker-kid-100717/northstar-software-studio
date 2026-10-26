@@ -76,13 +76,19 @@ public static class ProductSeed
 
     public static async Task SeedAsync(NorthstarDbContext db, CancellationToken ct = default)
     {
-        var existing = await db.ServiceProducts.Select(p => p.Slug).ToListAsync(ct);
-        var existingSet = existing.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var existing = await db.ServiceProducts.ToListAsync(ct);
+        var bySlug = existing.ToDictionary(p => p.Slug, StringComparer.OrdinalIgnoreCase);
         for (var i = 0; i < Catalog.Length; i++)
         {
             var (price, tier, name, problemCategory, problem, outcome, scope) = Catalog[i];
             var slug = Slugify(name);
-            if (existingSet.Contains(slug)) continue; // Preserve owner-managed existing product data.
+            if (bySlug.TryGetValue(slug, out var current))
+            {
+                // One-time legacy category migration: original seed stored the price tier as Category.
+                // Preserve all custom categories, prices, active states, and payment flags.
+                if (current.Category == tier) current.Category = problemCategory;
+                continue;
+            }
             db.ServiceProducts.Add(new ServiceProduct
             {
                 Slug = slug, Name = name, Category = problemCategory, PriceCents = price * 100,
