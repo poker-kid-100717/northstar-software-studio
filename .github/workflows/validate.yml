@@ -60,6 +60,6 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
       - name: Catalog parity check
-        run: node ../scripts/check-catalog-parity.mjs
+        run: cd .. && node scripts/check-catalog-parity.mjs
       - name: Production build
         run: npm run build -- --configuration production
