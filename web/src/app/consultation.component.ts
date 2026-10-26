@@ -1,5 +1,7 @@
 import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
+import { inject } from '@angular/core';
 
 @Component({
   standalone: true,
@@ -22,6 +24,7 @@ import { FormsModule } from '@angular/forms';
           <option value="application">Application development</option>
           <option value="other">Other / unsure</option>
         </select>
+        @if (selectedService) { <p class="catalog-request-context"><strong>Selected service:</strong> {{ selectedService }} · &#36;{{ selectedPrice }} starting price, subject to scope review</p> }
         <label for="projectDescription">Project description</label>
         <textarea id="projectDescription" name="projectDescription" [(ngModel)]="projectDescription" required minlength="30" maxlength="3000" rows="6" placeholder="What is happening, what should happen, and what outcome do you need?"></textarea>
         <div class="fixiq-fields">
@@ -37,8 +40,12 @@ import { FormsModule } from '@angular/forms';
   `
 })
 export class ConsultationComponent {
+  private readonly route = inject(ActivatedRoute);
+  readonly selectedService = (this.route.snapshot.queryParamMap.get("service") ?? "").slice(0,120);
+  readonly selectedPrice = [30,50,100].includes(Number(this.route.snapshot.queryParamMap.get("price"))) ? Number(this.route.snapshot.queryParamMap.get("price")) : 0;
   contactName = ''; contactEmail = ''; projectType = 'software-repair'; projectDescription = '';
   budget = 'unsure'; timeline = 'flexible'; website = '';
+  constructor() { if (this.selectedService) this.projectDescription = 'I would like help with: ' + this.selectedService + '.\n\nHere is what is happening: '; }
   submitting = false; error = false; message = '';
   async submit(): Promise<void> {
     if (this.submitting || this.contactName.trim().length < 1 || this.projectDescription.trim().length < 30) return;
@@ -47,7 +54,7 @@ export class ConsultationComponent {
       const response = await fetch('/api/consultation-inquiries', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: this.contactName, email: this.contactEmail, projectType: this.projectType,
-          description: this.projectDescription, budget: this.budget, timeline: this.timeline, website: this.website })
+          description: this.selectedService ? "Requested service: " + this.selectedService + "\n" + this.projectDescription : this.projectDescription, budget: this.budget, timeline: this.timeline, website: this.website })
       });
       if (!response.ok) throw new Error('Inquiry delivery is not available.');
       this.message = 'Your inquiry was sent. Thank you — we will review it and reply by email.';
