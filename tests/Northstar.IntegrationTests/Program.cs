@@ -31,6 +31,7 @@ await using (var db = new NorthstarDbContext(options))
     var capacity = await CapacityPolicy.CheckAsync(db, product, new CapacityOptions { MaximumOpenOrders = 1 }, DateTimeOffset.UtcNow);
     Assert(!capacity.Available, "Pending checkout reservation must consume capacity");
     OrderWorkflow.Transition(order, OrderStatus.Paid, "integration-test");
+    db.Entry(order.StatusHistory.Single()).State = EntityState.Added;
     order.PaymentStatus = PaymentState.Paid;
     db.PaymentTransactions.Add(new PaymentTransaction
     {
