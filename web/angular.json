@@ -24,6 +24,9 @@
                 "glob": "**/*",
                 "input": "public"
               }
+            ],
+            "polyfills": [
+              "zone.js"
             ]
           },
           "configurations": {
