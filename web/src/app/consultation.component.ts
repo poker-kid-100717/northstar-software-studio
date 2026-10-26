@@ -1,4 +1,5 @@
-import { Component } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
+declare global { interface Window { turnstile?: { render(element: HTMLElement, options: { sitekey: string; callback: (token: string) => void; 'expired-callback': () => void; 'error-callback': () => void }): string; remove(id: string): void; reset(id: string): void } } }
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { inject } from '@angular/core';
@@ -32,14 +33,16 @@ import { inject } from '@angular/core';
           <div><label for="timeline">Timeline</label><select id="timeline" name="timeline" [(ngModel)]="timeline"><option value="flexible">Flexible</option><option value="this-week">This week</option><option value="2-4-weeks">2–4 weeks</option><option value="later">Later</option></select></div>
         </div>
         <div class="inquiry-honeypot" aria-hidden="true"><label for="website">Website</label><input id="website" name="website" [(ngModel)]="website" tabindex="-1" autocomplete="off"></div>
+        <div id="northstar-turnstile" aria-label="Spam verification"></div>
+        @if (verificationMessage) { <p class="fineprint" role="status">{{ verificationMessage }}</p> }
         <p class="fineprint">Do not include passwords, API keys, patient information, or confidential customer data. Sending an inquiry does not create a service agreement.</p>
-        <button class="button primary" type="submit" [disabled]="inquiryForm.invalid || submitting">{{ submitting ? 'Sending…' : 'Send inquiry' }}</button>
+        <button class="button primary" type="submit" [disabled]="inquiryForm.invalid || submitting || !turnstileToken">{{ submitting ? 'Sending…' : 'Send inquiry' }}</button>
         @if (message) { <p [class.error]="error" role="status">{{ message }}</p> }
       </form>
     </section>
   `
 })
-export class ConsultationComponent {
+export class ConsultationComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   readonly selectedService = (this.route.snapshot.queryParamMap.get("service") ?? "").slice(0,120);
   readonly selectedPrice = [30,50,100].includes(Number(this.route.snapshot.queryParamMap.get("price"))) ? Number(this.route.snapshot.queryParamMap.get("price")) : 0;
@@ -47,6 +50,36 @@ export class ConsultationComponent {
   budget = 'unsure'; timeline = 'flexible'; website = '';
   constructor() { if (this.selectedService) this.projectDescription = 'I would like help with: ' + this.selectedService + '.\n\nHere is what is happening: '; }
   submitting = false; error = false; message = '';
+  turnstileToken = ''; verificationMessage = 'Loading spam protection…';
+  private widgetId: string | null = null;
+  private destroyed = false;
+  async ngOnInit(): Promise<void> {
+    try {
+      const response = await fetch('/api/consultation-inquiries', { cache: 'no-store' });
+      if (!response.ok) throw new Error('Verification configuration unavailable');
+      const config = await response.json() as { siteKey?: string | null };
+      if (!config.siteKey || this.destroyed) throw new Error('Verification not configured');
+      if (!window.turnstile) {
+        await new Promise<void>((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+          script.async = true; script.onload = () => resolve(); script.onerror = () => reject(new Error('Verification failed to load'));
+          document.head.appendChild(script);
+        });
+      }
+      if (this.destroyed) return;
+      const element = document.getElementById('northstar-turnstile');
+      if (!element || !window.turnstile) throw new Error('Verification unavailable');
+      this.widgetId = window.turnstile.render(element, { sitekey: config.siteKey,
+        callback: token => { this.turnstileToken = token; this.verificationMessage = ''; },
+        'expired-callback': () => { this.turnstileToken = ''; this.verificationMessage = 'Verification expired. Please try again.'; },
+        'error-callback': () => { this.turnstileToken = ''; this.verificationMessage = 'Verification unavailable. Please refresh.'; }
+      });
+      this.verificationMessage = '';
+    } catch { if (!this.destroyed) this.verificationMessage = 'Verification is currently unavailable. Please try again later.'; }
+  }
+  ngOnDestroy(): void { this.destroyed = true; if (this.widgetId && window.turnstile) window.turnstile.remove(this.widgetId); }
+
   async submit(): Promise<void> {
     if (this.submitting || this.contactName.trim().length < 1 || this.projectDescription.trim().length < 30 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(this.contactEmail.trim())) return;
     this.submitting = true; this.message = ''; this.error = false;
@@ -54,7 +87,7 @@ export class ConsultationComponent {
       const response = await fetch('/api/consultation-inquiries', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: this.contactName, email: this.contactEmail, projectType: this.projectType,
-          description: this.selectedService ? "Requested service: " + this.selectedService + "\n" + this.projectDescription : this.projectDescription, budget: this.budget, timeline: this.timeline, website: this.website })
+          description: this.selectedService ? "Requested service: " + this.selectedService + "\n" + this.projectDescription : this.projectDescription, budget: this.budget, timeline: this.timeline, website: this.website, turnstileToken: this.turnstileToken })
       });
       if (!response.ok) throw new Error('Inquiry delivery is not available.');
       this.message = 'Your inquiry was sent. Thank you — we will review it and reply by email.';
@@ -62,6 +95,10 @@ export class ConsultationComponent {
     } catch {
       this.error = true;
       this.message = 'We could not deliver your inquiry. Please try again later.';
-    } finally { this.submitting = false; }
+    } finally {
+      this.submitting = false;
+      this.turnstileToken = '';
+      if (this.widgetId && window.turnstile) window.turnstile.reset(this.widgetId);
+    }
   }
 }
