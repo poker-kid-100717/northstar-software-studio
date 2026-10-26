@@ -48,7 +48,7 @@ export class ConsultationComponent {
   constructor() { if (this.selectedService) this.projectDescription = 'I would like help with: ' + this.selectedService + '.\n\nHere is what is happening: '; }
   submitting = false; error = false; message = '';
   async submit(): Promise<void> {
-    if (this.submitting || this.contactName.trim().length < 1 || this.projectDescription.trim().length < 30) return;
+    if (this.submitting || this.contactName.trim().length < 1 || this.projectDescription.trim().length < 30 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(this.contactEmail.trim())) return;
     this.submitting = true; this.message = ''; this.error = false;
     try {
       const response = await fetch('/api/consultation-inquiries', {
