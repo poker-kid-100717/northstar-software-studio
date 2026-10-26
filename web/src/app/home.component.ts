@@ -11,14 +11,14 @@ interface Guidance { title: string; checks: string[]; tier: string; note: string
   imports: [RouterLink, FormsModule],
   template: `
     <section class="hero">
-      <p class="eyebrow">NORTHSTAR FIXIQ · SOFTWARE RESCUE</p>
-      <h1>Something broke.<br><em>Let's find the right fix.</em></h1>
-      <p class="lead">When software, integrations, or automations stop working, get a clear starting point and a realistic repair path. No open-ended consulting commitment.</p>
-      <div class="actions"><a class="button primary" href="#fixiq">Try FixIQ triage →</a><a class="button secondary" routerLink="/instant-fixes">Browse $30–$100 fixes</a></div>
+      <p class="eyebrow">NORTHSTAR SOFTWARE STUDIO · BUILT FOR WHAT'S NEXT</p>
+      <h1>Future-Driven<br><em>Software Development.</em></h1>
+      <p class="lead">Practical custom software, modern APIs, AI-enabled workflows, and targeted technical fixes. From your next big idea to the one bug holding you back.</p>
+      <div class="actions"><a class="button primary" routerLink="/consultation">Discuss a project →</a><a class="button secondary" routerLink="/instant-fixes">Explore $30–$100 fixes</a></div>
     </section>
     <section id="fixiq" class="section">
-      <p class="eyebrow">START HERE · NO ACCOUNT REQUIRED</p>
-      <h2>Tell us what's broken.</h2>
+      <p class="eyebrow">FIXIQ · FREE SELF-SERVICE TRIAGE</p>
+      <h2>Have a specific issue? Start here.</h2>
       <p class="lead">A private, in-browser preliminary assessment. We don't send this description to a server. Do not enter passwords, API keys, patient records, or customer personal information.</p>
       <form class="fixiq-panel" (ngSubmit)="assess()">
         <label for="problem">Describe the issue</label>
@@ -49,11 +49,11 @@ interface Guidance { title: string; checks: string[]; tier: string; note: string
     </section>
     <section class="section" id="consulting">
       <p class="eyebrow">FOCUSED REPAIRS · DOCUMENTED RESULTS</p>
-      <h2>Small problems deserve a clear solution.</h2>
+      <h2>Engineering help that fits the problem.</h2>
       <div class="cards">
         <article class="card"><h3>Instant Fixes</h3><p>Clearly scoped code, SQL, API, and automation fixes from $30 to $100.</p><a routerLink="/instant-fixes">See fixed-price options →</a></article>
-        <article class="card"><h3>Integration rescue</h3><p>Investigate failed webhooks, missing CRM leads, broken data syncs, and invoice workflows.</p><span class="muted">Quoted after scope review · Not yet available for purchase</span></article>
-        <article class="card"><h3>AI-built app stabilization</h3><p>Make fragile prototypes safer to maintain through targeted debugging, tests, and deployment reviews.</p><span class="muted">Quoted after scope review · Not yet available for purchase</span></article>
+        <article class="card"><h3>Custom software & integrations</h3><p>Build reliable .NET and Angular applications, APIs, data integrations, and business workflows.</p><a routerLink="/consultation">Request a consultation →</a></article>
+        <article class="card"><h3>AI-enabled automation</h3><p>Improve internal workflows with responsible AI integrations, automated processes, and maintainable engineering.</p><a routerLink="/consultation">Tell us what you need →</a></article>
       </div>
       <p class="fineprint">FixIQ Watch monitoring is on the roadmap. We do not currently offer 24/7 monitoring, guaranteed response times, or automatic repairs.</p>
     </section>
