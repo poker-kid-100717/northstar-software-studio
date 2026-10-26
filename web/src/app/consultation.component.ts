@@ -38,7 +38,7 @@ import { inject } from '@angular/core';
           <option value="application">Build something new</option>
           <option value="other">Explore an idea / not sure yet</option>
         </select>
-        @if (selectedService) { <p class="catalog-request-context"><strong>Selected service:</strong> {{ selectedService }} · &#36;{{ selectedPrice }} starting price, subject to scope review</p> }
+        @if (selectedService) { <p class="catalog-request-context"><strong>Interested in:</strong> {{ selectedService }}. @if (selectedPrice) { <span>Listed tier: &#36;{{ selectedPrice }}.</span> } <span>We will confirm fit, deliverables, and final pricing before work begins.</span></p> }
         <label for="projectDescription">Tell us about your idea or what you'd like to change</label>
         <p class="consultation-hint" id="description-help">A few sentences are enough. What would you love to make possible? If something is broken, you can describe that too. No technical experience required. Please leave out passwords and private data.</p>
         <textarea id="projectDescription" name="projectDescription" [(ngModel)]="projectDescription" required minlength="30" maxlength="3000" rows="6" aria-describedby="description-help description-count" placeholder="For example: I have an idea for an app that helps my customers book appointments. I know what I want it to do, but I'm not sure where to start."></textarea>
@@ -52,7 +52,7 @@ import { inject } from '@angular/core';
         @if (verificationMessage) { <p class="fineprint" role="status">{{ verificationMessage }}</p> }
         <p class="fineprint">Do not include passwords, API keys, patient information, or confidential customer data. Sending an inquiry does not create a service agreement.</p>
         <button class="button primary consultation-submit" type="submit" [disabled]="inquiryForm.invalid || submitting || !turnstileToken">{{ submitting ? 'Sending your request…' : 'Share my idea →' }}</button>
-        <p class="consultation-hint">Your idea stays yours. No commitment or charge for reaching out. We'll discuss next steps together.</p>
+        <p class="consultation-hint">You stay in control of your project. No commitment or charge for reaching out. We'll discuss next steps together.</p>
         @if (message) { <p class="consultation-feedback" [class.error]="error" role="alert" aria-live="assertive">{{ message }}</p> }
       </form>
       }
@@ -65,7 +65,7 @@ export class ConsultationComponent implements OnInit, OnDestroy {
   readonly selectedPrice = [30,50,100].includes(Number(this.route.snapshot.queryParamMap.get("price"))) ? Number(this.route.snapshot.queryParamMap.get("price")) : 0;
   contactName = ''; contactEmail = ''; projectType = 'other'; projectDescription = '';
   budget = 'unsure'; timeline = 'flexible'; website = '';
-  constructor() { if (this.selectedService) this.projectDescription = 'I would like help with: ' + this.selectedService + '.\n\nHere is what is happening: '; }
+  constructor() { if (this.selectedService) { this.projectType = 'software-repair'; this.projectDescription = 'I am interested in: ' + this.selectedService + '.\n\nWhat I would like to accomplish: '; } }
   submitting = false; error = false; message = ''; sent = false; submittedEmail = ''; reference = ''; notificationPending = false;
   startAnother(): void { window.location.assign('/consultation'); }
   turnstileToken = ''; verificationMessage = 'Loading spam protection…';
