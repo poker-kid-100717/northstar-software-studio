@@ -9,6 +9,10 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) =>
   Response.json({ siteKey: env.TURNSTILE_SITE_KEY ?? null }, { headers: { 'Cache-Control': 'no-store' } });
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
+  // Browser submissions must originate from the deployed storefront.
+  // This supplements Turnstile; it is not a substitute for edge rate limiting.
+  const origin = request.headers.get('origin');
+  if (origin && origin !== new URL(request.url).origin) return json('ORIGIN_NOT_ALLOWED',403);
   if (request.headers.get('content-type')?.split(';')[0].trim().toLowerCase() !== 'application/json') return json('INVALID_CONTENT_TYPE',415);
   if (Number(request.headers.get('content-length') || 0) > 12000) return json('PAYLOAD_TOO_LARGE',413);
   let body: Inquiry;
@@ -38,7 +42,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     form.set('secret', env.TURNSTILE_SECRET_KEY);
     form.set('response', token);
     if (ip) form.set('remoteip', ip);
-    const verification = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', { method: 'POST', body: form });
+    const verification = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', { method: 'POST', body: form, signal: AbortSignal.timeout(8000) });
     if (!verification.ok) return json('VERIFICATION_UNAVAILABLE',503);
     const result = await verification.json() as { success?: boolean; hostname?: string };
     if (!result.success || result.hostname !== new URL(request.url).hostname) return json('VERIFICATION_FAILED',403);
@@ -48,6 +52,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   try {
     const upstream = await fetch('https://api.resend.com/emails', {
       method: 'POST', headers: { Authorization: 'Bearer '+env.RESEND_API_KEY, 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(10000),
       body: JSON.stringify({ from: env.CONSULTATION_FROM_EMAIL, to: [recipient],
         reply_to: email, subject: 'Northstar consultation inquiry: '+projectType, text })
     });
