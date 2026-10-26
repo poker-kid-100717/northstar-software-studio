@@ -9,7 +9,8 @@ var options = new DbContextOptionsBuilder<NorthstarDbContext>().UseNpgsql(connec
 await using (var db = new NorthstarDbContext(options))
 {
     await db.Database.EnsureDeletedAsync();
-    await db.Database.EnsureCreatedAsync();
+    await db.Database.MigrateAsync();
+    Assert((await db.Database.GetAppliedMigrationsAsync()).Any(), "Expected a committed EF Core migration");
     await ProductSeed.SeedAsync(db);
     Assert(await db.ServiceProducts.CountAsync() == 15, "Expected 15 seeded products");
     var product = await db.ServiceProducts.OrderBy(x => x.DisplayOrder).FirstAsync();
