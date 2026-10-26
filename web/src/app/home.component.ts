@@ -12,11 +12,11 @@ interface Guidance { title: string; checks: string[]; tier: string; note: string
   template: `
     <section class="hero">
       <div class="hero-content">
-      <div class="hero-copy"><p class="eyebrow">MODERN SOLUTIONS · REAL RESULTS</p>
-      <h1>Future-Driven<br><em>Software Development.</em></h1>
-      <p class="lead">Custom applications, integrations, and AI-enabled solutions that help your business work smarter, move faster, and solve real problems.</p>
-      <div class="actions"><a class="button primary" routerLink="/consultation">Start a project →</a><a class="button hero-outline" routerLink="/instant-fixes">View Instant Fixes</a></div>
-      <div class="hero-benefits"><span>⚡ Focused delivery</span><span>⬡ Transparent scope</span><span>✦ Practical engineering</span></div></div>
+      <div class="hero-copy"><p class="eyebrow">YOUR IDEAS · YOUR WAY</p>
+      <h1>You imagine it.<br><em>We help you build it.</em></h1>
+      <p class="lead">Whether you're starting with a rough idea, improving something you've already built, or creating something entirely your own, we'll help you turn your vision into working software.</p>
+      <div class="actions"><a class="button primary" routerLink="/consultation">Tell us your idea →</a><a class="button hero-outline" routerLink="/instant-fixes">View Instant Fixes</a></div>
+      <div class="hero-benefits"><span>✦ Your vision first</span><span>⬡ Clear expectations</span><span>♡ Build together</span></div></div>
       <div class="hero-visual" aria-label="Illustration of a software solution"><div class="code-window"><div class="code-tabs">C# &nbsp; · &nbsp; .NET &nbsp; · &nbsp; Angular &nbsp; · &nbsp; SQL &nbsp; · &nbsp; AI</div><pre>public class SolutionService
 &#123;
   public async Task&lt;Result&gt;
@@ -25,14 +25,14 @@ interface Guidance { title: string; checks: string[]; tier: string; note: string
     // Understand. Build. Verify.
     return await DeliverAsync(request);
   &#125;
-&#125;</pre></div><div class="hero-status"><strong>✓ &nbsp; Problem solved</strong><span>Identify root cause</span><span>Implement solution</span><span>Verify and document</span></div></div></div>
+&#125;</pre></div><div class="hero-status"><strong>✓ &nbsp; Built around your goals</strong><span>Listen to your vision</span><span>Build collaboratively</span><span>Make it yours</span></div></div></div>
     </section>
     <section class="services-overview section" id="services">
-      <p class="eyebrow">WHAT WE DO</p><h2>Solutions for real business challenges.</h2>
+      <p class="eyebrow">WHAT WE DO</p><h2>Whatever you're imagining, let's explore it.</h2>
       <div class="cards">
-        <article class="card service-tile"><div class="service-icon" aria-hidden="true">⌘</div><h3>Custom Software Development</h3><p>Modern web applications, APIs, integrations, and workflow automation built around .NET, Angular, and cloud technology.</p><a routerLink="/consultation">Discuss a project →</a></article>
+        <article class="card service-tile"><div class="service-icon" aria-hidden="true">⌘</div><h3>Custom Software Development</h3><p>Have an idea for an app, a tool, or a better way to work? We can shape and build it together, using technology that fits your goals.</p><a routerLink="/consultation">Discuss a project →</a></article>
         <article class="card service-tile"><div class="service-icon" aria-hidden="true">ϟ</div><h3>Instant Fixes</h3><p>Small, defined-scope code, data, and integration issues. Transparent $30, $50, and $100 service tiers.</p><a routerLink="/instant-fixes">Browse fixes →</a></article>
-        <article class="card service-tile"><div class="service-icon" aria-hidden="true">✧</div><h3>Consulting &amp; Project Inquiries</h3><p>Something larger or unusual? Share your goals, budget, and timeline for an individual scope review.</p><a routerLink="/consultation">Get in touch →</a></article>
+        <article class="card service-tile"><div class="service-icon" aria-hidden="true">✧</div><h3>Consulting &amp; Project Inquiries</h3><p>No technical vocabulary required. Tell us what you want to create, where you're starting, and how involved you'd like to be.</p><a routerLink="/consultation">Get in touch →</a></article>
       </div>
     </section>
     <section class="featured section"><div class="feature-intro"><p class="eyebrow">FEATURED SERVICE</p><h2>Instant Fixes</h2><p class="lead">One reproducible issue. One defined deliverable. An agreed price before work begins.</p><a class="button primary" routerLink="/instant-fixes">Browse all fixes →</a></div>
@@ -40,7 +40,7 @@ interface Guidance { title: string; checks: string[]; tier: string; note: string
     </section>
     <section id="fixiq" class="section">
       <p class="eyebrow">FIXIQ · FREE SELF-SERVICE TRIAGE</p>
-      <h2>Have something broken? Start here.</h2>
+      <h2>Have a technical issue? We can help with that, too.</h2>
       <p class="lead">A private, in-browser preliminary assessment. We don't send this description to a server. Do not enter passwords, API keys, patient records, or customer personal information.</p>
       <form class="fixiq-panel" (ngSubmit)="assess()">
         <label for="problem">Describe the issue</label>
@@ -70,8 +70,8 @@ interface Guidance { title: string; checks: string[]; tier: string; note: string
       }
     </section>
     <section class="section next-step" id="consulting">
-      <p class="eyebrow">FOCUSED REPAIRS · DOCUMENTED RESULTS</p>
-      <h2>Need a bigger solution?</h2>
+      <p class="eyebrow">START WHERE YOU ARE · BUILD WHAT YOU WANT</p>
+      <h2>Want to build something different?</h2>
       <div class="cards">
         <article class="card"><h3>Instant Fixes</h3><p>Clearly scoped code, SQL, API, and automation fixes from $30 to $100.</p><a routerLink="/instant-fixes">See fixed-price options →</a></article>
         <article class="card"><h3>Integration rescue</h3><p>Investigate failed webhooks, missing CRM leads, broken data syncs, and invoice workflows.</p><a routerLink="/consultation">Request scope review →</a></article>
