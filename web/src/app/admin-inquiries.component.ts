@@ -17,6 +17,7 @@ interface Inquiry { id:string; created_at:string; contact_name:string; contact_e
      </select></label>
      <button type="button" class="button secondary" (click)="load()" [disabled]="loading">Refresh</button>
    </div>
+   @if (needsLogin) { <div class="ns-admin-error" role="alert"><strong>Sign in to manage inquiries</strong><p>Cloudflare Access needs an authenticated session before the dashboard can retrieve private customer records.</p><a class="button primary" href="/api/admin/inquiries" target="_self">Continue to secure sign-in</a><p class="fineprint">After signing in, return to /admin and click Refresh.</p></div> }
    @if (loading) { <p role="status">Loading your inquiries…</p> }
    @if (error) { <div class="ns-admin-error" role="alert"><strong>Unable to load inquiries.</strong><p>{{error}}</p><button class="button secondary" (click)="load()">Try again</button></div> }
    @if (!loading && !error) {
@@ -57,20 +58,21 @@ interface Inquiry { id:string; created_at:string; contact_name:string; contact_e
  </section>`
 })
 export class AdminInquiriesComponent implements OnInit {
- inquiries:Inquiry[]=[]; selected:Inquiry|null=null; loading=false; error=''; search=''; status='all'; limit=50;
+ inquiries:Inquiry[]=[]; selected:Inquiry|null=null; loading=false; error=''; needsLogin=false; search=''; status='all'; limit=50;
  readonly statuses=['new','reviewing','contacted','qualified','quoted','won','lost','archived'];
  get filtered():Inquiry[] { const q=this.search.trim().toLowerCase(); return this.inquiries.filter(i=>!q || [i.contact_name,i.contact_email,i.project_type,i.description,i.id].some(x=>x.toLowerCase().includes(q))); }
  encodeSubject(id:string):string { return encodeURIComponent('Northstar inquiry '+id); }
  ngOnInit():void { void this.load(); }
  async load():Promise<void> {
-   this.loading=true;this.error='';
+   this.loading=true;this.error='';this.needsLogin=false;
    try {
      const response=await fetch('/api/admin/inquiries?status='+encodeURIComponent(this.status)+'&limit='+this.limit,{cache:'no-store',credentials:'same-origin'});
+     if(response.redirected || response.url.includes('/cdn-cgi/access/login') || response.status===401 || response.status===403) { this.needsLogin=true; throw new Error('Your Cloudflare Access session needs to be established or renewed. Use the secure sign-in link above.'); }
      if(!response.ok) throw new Error(response.status===401||response.status===403?'Your admin session is not authorized. Sign in through Cloudflare Access and try again.':response.status===503?'The admin API is not fully configured yet. Check Cloudflare Access settings and D1 binding.':'The server returned HTTP '+response.status+'.');
      const data=await response.json() as {inquiries?:Inquiry[]};
      this.inquiries=data.inquiries??[];
      this.selected=this.inquiries.find(i=>i.id===this.selected?.id)??this.inquiries[0]??null;
-   } catch(e) { this.error=e instanceof Error?e.message:'An unexpected error occurred.'; }
+   } catch(e) { if(e instanceof TypeError) { this.needsLogin=true; this.error='The secure login was redirected outside the application. Use Continue to secure sign-in above, then return here and refresh.'; } else { this.error=e instanceof Error?e.message:'An unexpected error occurred.'; } }
    finally {this.loading=false;}
  }
 }
