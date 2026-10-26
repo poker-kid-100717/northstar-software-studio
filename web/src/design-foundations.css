@@ -1,0 +1,27 @@
+
+/* Northstar design foundations: consistent interaction, readability and responsive polish. */
+:root{--ns-ink:#14243e;--ns-muted:#53657d;--ns-blue:#195fcb;--ns-blue-hover:#124ca8;--ns-line:#d9e3f0;--ns-ring:#82b4ff;--ns-radius:12px;color-scheme:light}
+html{scroll-behavior:smooth}
+body{line-height:1.55;-webkit-font-smoothing:antialiased}
+::selection{background:#c9ddff;color:#102b51}
+:where(a,button,input,select,textarea):focus-visible{outline:3px solid var(--ns-ring);outline-offset:3px}
+:where(button,input,select,textarea){font:inherit}
+:where(input,select,textarea){max-width:100%;min-height:44px;transition:border-color .18s ease,box-shadow .18s ease,background-color .18s ease}
+:where(input,select,textarea):hover:not(:disabled){border-color:#7799c5}
+:where(input,select,textarea):focus-visible{border-color:var(--ns-blue);box-shadow:0 0 0 4px #cde0ff80}
+:where(select){appearance:none;padding-right:44px!important;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%23395070' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")!important;background-position:right 14px center!important;background-size:18px!important;background-repeat:no-repeat!important;cursor:pointer}
+:where(select:disabled,input:disabled,textarea:disabled){cursor:not-allowed;opacity:.65}
+:where(.button,.nav-cta,.filters button){transition:transform .18s ease,background-color .18s ease,border-color .18s ease,box-shadow .18s ease}
+:where(.button,.nav-cta,.filters button):hover:not(:disabled){transform:translateY(-1px);box-shadow:0 8px 22px #102d5818}
+.button.primary:hover:not(:disabled){background:var(--ns-blue-hover);border-color:var(--ns-blue-hover)}
+:where(.card,.catalog-card,.service-tile){transition:border-color .2s ease,box-shadow .2s ease,transform .2s ease}
+:where(.card,.catalog-card,.service-tile):hover{border-color:#b4c9e8;box-shadow:0 15px 36px #132e5215;transform:translateY(-2px)}
+:where(h1,h2,h3){text-wrap:balance}
+:where(p,li){overflow-wrap:break-word}
+.header{position:relative;z-index:10;box-shadow:0 1px 0 #102c4908}
+.header nav a:not(.nav-cta){padding:10px 0;border-bottom:2px solid transparent}
+.header nav a:not(.nav-cta):hover{border-bottom-color:var(--ns-blue)}
+footer{line-height:1.7}
+footer span{display:inline-block}
+@media(max-width:600px){.header{gap:16px}.header nav{width:100%;gap:12px 18px}.header nav .nav-cta{min-height:44px;display:inline-flex;align-items:center}.actions .button{min-height:44px}.hero h1{overflow-wrap:normal}.catalog-guidance{padding:24px}.catalog-results-heading{flex-wrap:wrap}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
