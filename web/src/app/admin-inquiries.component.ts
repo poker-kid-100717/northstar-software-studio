@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+interface Activity { id:string; kind:'note'|'status'; body:string|null; old_status:string|null; new_status:string|null; actor:string; created_at:string }
 interface Inquiry { id:string; created_at:string; contact_name:string; contact_email:string; project_type:string; description:string; budget:string; timeline:string; status:string; notification_status:string }
 @Component({
  standalone:true, imports:[DatePipe,DecimalPipe,FormsModule],
@@ -26,7 +27,7 @@ interface Inquiry { id:string; created_at:string; contact_name:string; contact_e
      <div class="ns-admin-grid">
        <div class="ns-admin-list" aria-label="Inquiries">
          @for (inquiry of filtered; track inquiry.id) {
-           <button type="button" class="ns-admin-item" [class.active]="selected?.id===inquiry.id" (click)="selected=inquiry" [attr.aria-pressed]="selected?.id===inquiry.id">
+           <button type="button" class="ns-admin-item" [class.active]="selected?.id===inquiry.id" (click)="selectInquiry(inquiry)" [attr.aria-pressed]="selected?.id===inquiry.id">
              <span class="ns-admin-item-head"><strong>{{inquiry.contact_name}}</strong><span class="ns-admin-status">{{inquiry.status}}</span></span>
              <span>{{inquiry.project_type}} · {{inquiry.created_at | date:'mediumDate'}}</span>
              <small>{{inquiry.contact_email}}</small>
@@ -53,7 +54,23 @@ interface Inquiry { id:string; created_at:string; contact_name:string; contact_e
            <p class="ns-admin-description">{{selected.description}}</p>
            <p class="muted">Reference: {{selected.id}}</p>
            <a class="button primary" [href]="'mailto:'+selected.contact_email+'?subject='+encodeSubject(selected.id)">Reply by email</a>
-           <p class="fineprint">Status changes, internal notes, and follow-up reminders are planned for the next release.</p>
+           <section aria-label="Private activity" class="ns-admin-activity">
+             <h3>Private notes and activity</h3>
+             <label for="inquiry-note">Add an internal note</label>
+             <textarea id="inquiry-note" [(ngModel)]="noteDraft" maxlength="2000" rows="3" placeholder="Record next steps, context, or a customer conversation"></textarea>
+             <button type="button" class="button secondary" (click)="addNote()" [disabled]="savingNote || !noteDraft.trim()"> {{savingNote ? 'Saving…' : 'Save private note'}} </button>
+             @if (activityError) { <p role="alert">{{activityError}}</p> }
+             @if (activityLoading) { <p role="status">Loading activity…</p> }
+             @if (!activityLoading && !activity.length) { <p class="muted">No activity recorded yet.</p> }
+             <ol>
+               @for (event of activity; track event.id) {
+                 <li><small>{{event.created_at | date:'medium'}} · {{event.actor}}</small>
+                   @if (event.kind === 'note') { <p class="ns-admin-description">{{event.body}}</p> }
+                   @else { <p>Status: {{event.old_status}} → {{event.new_status}}</p> }
+                 </li>
+               }
+             </ol>
+           </section>
          </article>
        }
      </div>
@@ -61,7 +78,7 @@ interface Inquiry { id:string; created_at:string; contact_name:string; contact_e
  </section>`
 })
 export class AdminInquiriesComponent implements OnInit {
- inquiries:Inquiry[]=[]; selected:Inquiry|null=null; loading=false; error=''; needsLogin=false; search=''; status='all'; limit=50; savingStatus=false; statusError=''; statusSaved=false;
+ inquiries:Inquiry[]=[]; selected:Inquiry|null=null; loading=false; error=''; needsLogin=false; search=''; status='all'; limit=50; savingStatus=false; statusError=''; statusSaved=false; activity:Activity[]=[]; activityLoading=false; activityError=''; noteDraft=''; savingNote=false;
  readonly statuses=['new','reviewing','contacted','qualified','quoted','won','lost','archived'];
  get filtered():Inquiry[] { const q=this.search.trim().toLowerCase(); return this.inquiries.filter(i=>!q || [i.contact_name,i.contact_email,i.project_type,i.description,i.id].some(x=>x.toLowerCase().includes(q))); }
  encodeSubject(id:string):string { return encodeURIComponent('Northstar inquiry '+id); }
@@ -80,6 +97,30 @@ export class AdminInquiriesComponent implements OnInit {
    } catch(e) { this.statusError=e instanceof Error?e.message:'Unable to save status.'; }
    finally {this.savingStatus=false;}
  }
+ selectInquiry(inquiry:Inquiry):void { this.selected=inquiry;this.noteDraft='';void this.loadActivity(); }
+ async loadActivity():Promise<void> {
+   const id=this.selected?.id;
+   this.activity=[];this.activityError='';if(!id)return;
+   this.activityLoading=true;
+   try {
+     const response=await fetch('/api/admin/inquiries/'+encodeURIComponent(id)+'/activity',{credentials:'same-origin',cache:'no-store'});
+     if(!response.ok || response.redirected) throw new Error('Unable to load private activity. Check that D1 migration 0002 is applied.');
+     const data=await response.json() as {activity:Activity[]};
+     if(this.selected?.id===id) this.activity=data.activity;
+   } catch(e) { if(this.selected?.id===id) this.activityError=e instanceof Error?e.message:'Activity unavailable'; }
+   finally { if(this.selected?.id===id)this.activityLoading=false; }
+ }
+ async addNote():Promise<void> {
+   const id=this.selected?.id, body=this.noteDraft.trim();
+   if(!id || !body || body.length>2000 || this.savingNote)return;
+   this.savingNote=true;this.activityError='';
+   try {
+     const response=await fetch('/api/admin/inquiries/'+encodeURIComponent(id)+'/activity',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({body})});
+     if(!response.ok || response.redirected) throw new Error('Could not save note. Please retry.');
+     if(this.selected?.id===id){this.noteDraft='';await this.loadActivity();}
+   } catch(e){this.activityError=e instanceof Error?e.message:'Could not save note';}
+   finally{this.savingNote=false;}
+ }
  ngOnInit():void { void this.load(); }
  async load():Promise<void> {
    this.loading=true;this.error='';this.needsLogin=false;this.statusError='';this.statusSaved=false;
@@ -89,7 +130,9 @@ export class AdminInquiriesComponent implements OnInit {
      if(!response.ok) throw new Error(response.status===401||response.status===403?'Your admin session is not authorized. Sign in through Cloudflare Access and try again.':response.status===503?'The admin API is not fully configured yet. Check Cloudflare Access settings and D1 binding.':'The server returned HTTP '+response.status+'.');
      const data=await response.json() as {inquiries?:Inquiry[]};
      this.inquiries=data.inquiries??[];
-     this.selected=this.inquiries.find(i=>i.id===this.selected?.id)??this.inquiries[0]??null;
+     const previous=this.selected?.id;
+     this.selected=this.inquiries.find(i=>i.id===previous)??this.inquiries[0]??null;
+     if(this.selected?.id!==previous) { this.noteDraft='';void this.loadActivity(); }
    } catch(e) { if(e instanceof TypeError) { this.needsLogin=true; this.error='The secure login was redirected outside the application. Use Continue to secure sign-in above, then return here and refresh.'; } else { this.error=e instanceof Error?e.message:'An unexpected error occurred.'; } }
    finally {this.loading=false;}
  }
