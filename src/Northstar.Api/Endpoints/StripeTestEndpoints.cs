@@ -92,7 +92,7 @@ public static class StripeTestEndpoints
             if(order.PaymentStatus==PaymentState.Pending)
             {
                 order.PaymentStatus=PaymentState.Paid;
-                if(order.Status==OrderStatus.PendingPayment) OrderWorkflow.Transition(order,OrderStatus.Paid,"stripe-test-webhook");
+                if(order.Status==OrderStatus.PendingPayment) { OrderWorkflow.Transition(order,OrderStatus.Paid,"stripe-test-webhook"); db.Entry(order.StatusHistory.Last()).State=EntityState.Added; }
                 // Expired reservations can receive delayed payments. Flag for manual refund/reconciliation, never silently discard payment.
                 else if(order.Status==OrderStatus.Cancelled) order.RequiresPaymentReview=true;
             }
