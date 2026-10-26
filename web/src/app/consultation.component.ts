@@ -24,7 +24,7 @@ import { inject } from '@angular/core';
           <option value="application">Application development</option>
           <option value="other">Other / unsure</option>
         </select>
-        @if (selectedService) { <p class="catalog-request-context"><strong>Selected service:</strong> {{ selectedService }} · ${{ selectedPrice }} starting price, subject to scope review</p> }
+        @if (selectedService) { <p class="catalog-request-context"><strong>Selected service:</strong> {{ selectedService }} · &#36;{{ selectedPrice }} starting price, subject to scope review</p> }
         <label for="projectDescription">Project description</label>
         <textarea id="projectDescription" name="projectDescription" [(ngModel)]="projectDescription" required minlength="30" maxlength="3000" rows="6" placeholder="What is happening, what should happen, and what outcome do you need?"></textarea>
         <div class="fixiq-fields">
