@@ -10,9 +10,9 @@ Deploy the public Angular storefront first. Do **not** enable payments until the
 5. Use these build settings:
    - Framework: **Angular** (or None if the Angular preset does not match)
    - Root directory: `web`
-   - Build command: `npm ci && npm run build -- --configuration production`
+   - Build command: `npm install --no-audit --no-fund && npm run build -- --configuration production`
    - Build output directory: `dist/northstar/browser`
-6. Deploy. Cloudflare assigns a `*.pages.dev` URL. Visit the homepage and check the browser console.
+6. Deploy. The repository currently lacks a committed `web/package-lock.json`, so `npm ci` fails with EUSAGE. This temporary build command uses `npm install` until a lockfile is generated and committed; switch back to `npm ci` afterward. Cloudflare assigns a `*.pages.dev` URL. Visit the homepage and check the browser console.
 7. Set a custom domain later if desired.
 
 ## Important launch constraints
