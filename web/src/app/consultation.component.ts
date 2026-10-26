@@ -18,6 +18,7 @@ import { inject } from '@angular/core';
           <span class="consultation-success-icon" aria-hidden="true">✓</span>
           <h2>Thanks — your request is on its way.</h2>
           <p>We received your inquiry. Keep an eye on <strong>{{ submittedEmail }}</strong> for a reply. We’ll review the details before discussing scope or pricing.</p>
+          @if (reference) { <p class="consultation-reference"><strong>Reference:</strong> {{ reference }}</p> }
           <p class="fineprint">This is not a booking or payment confirmation. If you don’t hear back, please check your spam folder.</p>
           <button type="button" class="button secondary" (click)="startAnother()">Send another request</button>
         </section>
@@ -65,7 +66,7 @@ export class ConsultationComponent implements OnInit, OnDestroy {
   contactName = ''; contactEmail = ''; projectType = 'software-repair'; projectDescription = '';
   budget = 'unsure'; timeline = 'flexible'; website = '';
   constructor() { if (this.selectedService) this.projectDescription = 'I would like help with: ' + this.selectedService + '.\n\nHere is what is happening: '; }
-  submitting = false; error = false; message = ''; sent = false; submittedEmail = '';
+  submitting = false; error = false; message = ''; sent = false; submittedEmail = ''; reference = '';
   startAnother(): void { window.location.assign('/consultation'); }
   turnstileToken = ''; verificationMessage = 'Loading spam protection…';
   private widgetId: string | null = null;
@@ -120,6 +121,9 @@ export class ConsultationComponent implements OnInit, OnDestroy {
           description: this.selectedService ? "Requested service: " + this.selectedService + "\n" + this.projectDescription : this.projectDescription, budget: this.budget, timeline: this.timeline, website: this.website, turnstileToken: this.turnstileToken })
       });
       if (!response.ok) throw new Error('Inquiry delivery is not available.');
+      const result = await response.json() as { ok?: boolean; reference?: string; stored?: boolean; notification?: string };
+      if (!result.ok) throw new Error('Inquiry was not accepted.');
+      this.reference = result.stored && result.reference ? result.reference : '';
       this.submittedEmail = this.contactEmail.trim();
       this.sent = true;
       this.message = '';
