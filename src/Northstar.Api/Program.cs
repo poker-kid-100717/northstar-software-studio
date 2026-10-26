@@ -13,8 +13,9 @@ if (app.Environment.IsDevelopment())
 {
     await using var scope = app.Services.CreateAsyncScope();
     var db = scope.ServiceProvider.GetRequiredService<NorthstarDbContext>();
-    // Local preview only. Production must use versioned EF Core migrations.
-    await db.Database.EnsureCreatedAsync();
+    // Apply versioned migrations to a fresh or previously migrated development database.
+    // Legacy EnsureCreated databases must be backed up and migrated separately.
+    await db.Database.MigrateAsync();
     await ProductSeed.SeedAsync(db);
 }
 app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "Northstar Software Studio" }));

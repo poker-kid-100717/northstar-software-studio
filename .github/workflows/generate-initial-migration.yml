@@ -1,0 +1,35 @@
+name: Generate initial EF migration
+on:
+  push:
+    branches: [feature/ef-core-initial-migration]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore API NuGet packages
+        run: dotnet restore src/Northstar.Api/Northstar.Api.csproj
+      - name: Install EF Core CLI
+        run: dotnet tool install --global dotnet-ef --version 10.0.0
+      - name: Generate initial migration only if missing
+        run: |
+          if ! find src/Northstar.Api/Data/Migrations -name '*InitialSchema.cs' -print -quit 2>/dev/null | grep -q .; then
+            dotnet ef migrations add InitialSchema --project src/Northstar.Api --startup-project src/Northstar.Api --output-dir Data/Migrations
+          fi
+      - name: Commit generated migration and snapshot
+        run: |
+          git add src/Northstar.Api/Data/Migrations
+          if ! git diff --cached --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "Generate initial EF Core PostgreSQL schema migration"
+            git push
+          fi
