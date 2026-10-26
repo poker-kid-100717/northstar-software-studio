@@ -1,10 +1,13 @@
-interface Env { RESEND_API_KEY?: string; CONSULTATION_FROM_EMAIL?: string; }
-interface Inquiry { name?: unknown; email?: unknown; projectType?: unknown; description?: unknown; budget?: unknown; timeline?: unknown; website?: unknown; }
+interface Env { RESEND_API_KEY?: string; CONSULTATION_FROM_EMAIL?: string; TURNSTILE_SITE_KEY?: string; TURNSTILE_SECRET_KEY?: string; }
+interface Inquiry { name?: unknown; email?: unknown; projectType?: unknown; description?: unknown; budget?: unknown; timeline?: unknown; website?: unknown; turnstileToken?: unknown; }
 const allowedTypes = new Set(['software-repair','integration','automation','application','other']);
 const allowedBudgets = new Set(['unsure','under-250','250-1000','1000-5000','5000-plus']);
 const allowedTimelines = new Set(['flexible','this-week','2-4-weeks','later']);
 const recipient = 'joshuad100717@outlook.com';
 const json = (message: string, status: number) => Response.json({ error: message }, { status, headers: { 'Cache-Control': 'no-store' } });
+export const onRequestGet: PagesFunction<Env> = async ({ env }) =>
+  Response.json({ siteKey: env.TURNSTILE_SITE_KEY ?? null }, { headers: { 'Cache-Control': 'no-store' } });
+
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (request.headers.get('content-type')?.split(';')[0].trim().toLowerCase() !== 'application/json') return json('INVALID_CONTENT_TYPE',415);
   if (Number(request.headers.get('content-length') || 0) > 12000) return json('PAYLOAD_TOO_LARGE',413);
@@ -25,7 +28,21 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!name || name.length > 100 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 ||
       description.length < 30 || description.length > 3000 || !allowedTypes.has(projectType) ||
       !allowedBudgets.has(budget) || !allowedTimelines.has(timeline)) return json('INVALID_INQUIRY',400);
-  if (!env.RESEND_API_KEY || !env.CONSULTATION_FROM_EMAIL) return json('INQUIRY_NOT_CONFIGURED',503);
+  if (!env.RESEND_API_KEY || !env.CONSULTATION_FROM_EMAIL || !env.TURNSTILE_SECRET_KEY)
+    return json('INQUIRY_NOT_CONFIGURED',503);
+  const ip = request.headers.get('CF-Connecting-IP');
+  const token = typeof body.turnstileToken === 'string' ? body.turnstileToken : '';
+  if (!token || token.length > 2048) return json('VERIFICATION_REQUIRED',400);
+  try {
+    const form = new FormData();
+    form.set('secret', env.TURNSTILE_SECRET_KEY);
+    form.set('response', token);
+    if (ip) form.set('remoteip', ip);
+    const verification = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', { method: 'POST', body: form });
+    if (!verification.ok) return json('VERIFICATION_UNAVAILABLE',503);
+    const result = await verification.json() as { success?: boolean; hostname?: string };
+    if (!result.success || result.hostname !== new URL(request.url).hostname) return json('VERIFICATION_FAILED',403);
+  } catch { return json('VERIFICATION_UNAVAILABLE',503); }
   const text = ['New Northstar consultation inquiry', 'Name: '+name, 'Email: '+email,
     'Project type: '+projectType, 'Budget: '+budget, 'Timeline: '+timeline, '', 'Description:', description].join('\n');
   try {
