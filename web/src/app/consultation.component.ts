@@ -66,7 +66,7 @@ export class ConsultationComponent implements OnInit, OnDestroy {
   budget = 'unsure'; timeline = 'flexible'; website = '';
   constructor() { if (this.selectedService) this.projectDescription = 'I would like help with: ' + this.selectedService + '.\n\nHere is what is happening: '; }
   submitting = false; error = false; message = ''; sent = false; submittedEmail = '';
-  startAnother(): void { this.sent = false; this.message = ''; this.error = false; this.contactName = ''; this.contactEmail = ''; this.projectDescription = ''; this.turnstileToken = ''; this.ngOnInit(); }
+  startAnother(): void { window.location.assign('/consultation'); }
   turnstileToken = ''; verificationMessage = 'Loading spam protection…';
   private widgetId: string | null = null;
   private destroyed = false;
