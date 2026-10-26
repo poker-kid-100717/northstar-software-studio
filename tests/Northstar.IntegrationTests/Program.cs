@@ -12,7 +12,7 @@ await using (var db = new NorthstarDbContext(options))
     await db.Database.MigrateAsync();
     Assert((await db.Database.GetAppliedMigrationsAsync()).Any(), "Expected a committed EF Core migration");
     await ProductSeed.SeedAsync(db);
-    Assert(await db.ServiceProducts.CountAsync() == 15, "Expected 15 seeded products");
+    Assert(await db.ServiceProducts.CountAsync() == 65, "Expected 65 seeded products");
     var product = await db.ServiceProducts.OrderBy(x => x.DisplayOrder).FirstAsync();
     Assert(product.PriceCents == 3000 && !product.PaymentEligible, "Products must default to payment disabled");
     product.PaymentEligible = true;

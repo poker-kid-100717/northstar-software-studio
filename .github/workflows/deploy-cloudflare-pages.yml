@@ -46,6 +46,7 @@ jobs:
           echo 'Angular HTML and main JS bundle verified.'
       - name: Stage Pages Functions alongside Angular project
         run: |
+          set -eu
           mkdir -p functions
           cp -R ../functions/. functions/
           test -s functions/api/consultation-inquiries.ts
