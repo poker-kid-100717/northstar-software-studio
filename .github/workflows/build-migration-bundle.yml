@@ -1,0 +1,38 @@
+name: Build production EF migration bundle
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/Northstar.Api/Data/Migrations/**'
+      - 'src/Northstar.Api/Data/NorthstarDbContext.cs'
+      - '.github/workflows/build-migration-bundle.yml'
+permissions:
+  contents: read
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore dependencies
+        run: dotnet restore src/Northstar.Api/Northstar.Api.csproj
+      - name: Install EF CLI
+        run: dotnet tool install --global dotnet-ef --version 10.0.0
+      - name: Build Linux migration bundle (no database access)
+        run: |
+          dotnet ef migrations bundle \
+            --project src/Northstar.Api \
+            --startup-project src/Northstar.Api \
+            --self-contained \
+            --target-runtime linux-x64 \
+            --output ./efbundle
+          test -s ./efbundle
+      - name: Upload migration bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: northstar-efbundle-linux-x64
+          path: efbundle
+          retention-days: 7
