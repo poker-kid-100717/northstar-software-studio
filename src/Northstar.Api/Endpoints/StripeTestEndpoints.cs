@@ -81,6 +81,7 @@ public static class StripeTestEndpoints
             if(!Guid.TryParse(session.GetProperty("client_reference_id").GetString(),out var id)) return Results.Ok();
             var sessionId=session.GetProperty("id").GetString();
             var amount=session.GetProperty("amount_total").GetInt32();
+            if(session.GetProperty("currency").GetString()!="usd") return Results.BadRequest();
             if(session.GetProperty("livemode").GetBoolean()) return Results.BadRequest();
             await using var tx=await db.Database.BeginTransactionAsync(ct);
             await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(8103421)",ct);
