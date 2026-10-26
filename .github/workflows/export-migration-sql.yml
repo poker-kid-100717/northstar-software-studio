@@ -1,0 +1,31 @@
+name: Export EF Core SQL migrations
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore
+        run: dotnet restore src/Northstar.Api/Northstar.Api.csproj
+      - name: Install EF CLI
+        run: dotnet tool install --global dotnet-ef --version 10.0.0
+      - name: Generate idempotent SQL (no database access)
+        run: |
+          dotnet ef migrations script --idempotent \
+            --project src/Northstar.Api \
+            --startup-project src/Northstar.Api \
+            --output northstar-migrations.sql
+          test -s northstar-migrations.sql
+          grep -q '__EFMigrationsHistory' northstar-migrations.sql
+      - name: Upload SQL artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: northstar-neon-migrations-sql
+          path: northstar-migrations.sql
+          retention-days: 7
