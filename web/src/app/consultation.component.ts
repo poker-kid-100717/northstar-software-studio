@@ -81,7 +81,12 @@ export class ConsultationComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void { this.destroyed = true; if (this.widgetId && window.turnstile) window.turnstile.remove(this.widgetId); }
 
   async submit(): Promise<void> {
-    if (this.submitting || this.contactName.trim().length < 1 || this.projectDescription.trim().length < 30 || !this.turnstileToken || !/^[^\s@]+@[^\s@]+\\.[^\s@]+$/.test(this.contactEmail.trim())) return;
+    if (this.submitting) return;
+    if (this.contactName.trim().length < 1 || this.projectDescription.trim().length < 30 || !this.turnstileToken || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.contactEmail.trim())) {
+      this.error = true;
+      this.message = 'Please check your name, email, description, and spam verification before sending.';
+      return;
+    }
     this.submitting = true; this.message = ''; this.error = false;
     try {
       const response = await fetch('/api/consultation-inquiries', {
