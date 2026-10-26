@@ -27,3 +27,7 @@ Payments stay off by default. Test using a separate disposable database and Stri
 ## Automated checks
 
 GitHub Actions runs a disposable PostgreSQL 17 database and executes `tests/Northstar.IntegrationTests`. The suite intentionally uses `EnsureCreated` only in its isolated `northstar_test` database to validate current model behavior; it is **not** a migration test. Versioned migrations and a migration upgrade test are still required before production. Never enable live checkout based solely on this test suite.
+
+## Initial migration generated
+
+The initial PostgreSQL schema migration is committed under `src/Northstar.Api/Data/Migrations`. CI must run against that committed migration. GitHub Actions pushes made using `GITHUB_TOKEN` do not trigger subsequent push or pull-request workflows automatically; trigger validation with a normal commit or workflow dispatch after generation.
