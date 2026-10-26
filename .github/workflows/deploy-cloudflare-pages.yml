@@ -32,6 +32,17 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Build production storefront
         run: npm run build -- --configuration production
+      - name: Verify Angular deployment artifacts
+        run: |
+          set -eu
+          test -s dist/northstar/browser/index.html
+          echo 'Generated HTML:'
+          head -c 500 dist/northstar/browser/index.html
+          echo
+          echo 'Deployment files:'
+          find dist/northstar/browser -maxdepth 2 -type f | sort | head -50
+          test "$(find dist/northstar/browser -maxdepth 1 -name 'main-*.js' | wc -l)" -gt 0
+          echo 'Angular HTML and main JS bundle verified.'
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
