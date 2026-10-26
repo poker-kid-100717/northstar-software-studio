@@ -15,6 +15,9 @@ public sealed class ServiceOrder
     public PaymentState PaymentStatus { get; set; } = PaymentState.Pending;
     public PaymentEnvironment PaymentEnvironment { get; set; }
     public int PriceCents { get; set; }
+    public DateTimeOffset? ReservationExpiresAt { get; set; }
+    public string? StripeCheckoutSessionId { get; set; }
+    public bool RequiresPaymentReview { get; set; }
     public int ProcessingFeesCents { get; set; }
     public int RefundedCents { get; set; }
     public decimal ActualHours { get; set; }

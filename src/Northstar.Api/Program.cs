@@ -3,6 +3,7 @@ using Northstar.Api.Data;
 using Northstar.Api.Endpoints;
 using System.Threading.RateLimiting;
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddHttpClient();
 builder.Services.AddDbContext<NorthstarDbContext>(o => o.UseNpgsql(
     builder.Configuration.GetConnectionString("Northstar") ?? throw new InvalidOperationException("ConnectionStrings:Northstar is required")));
 builder.Services.AddRateLimiter(options => options.AddPolicy("intake", context => RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions { PermitLimit = 5, Window = TimeSpan.FromMinutes(10), QueueLimit = 0 })));
@@ -28,5 +29,6 @@ app.MapGet("/api/instant-fixes/{slug}", async (string slug, NorthstarDbContext d
     return p is null ? Results.NotFound() : Results.Ok(new { p.Id, p.Slug, p.Name, p.Category, p.Description, p.PriceCents, p.Scope, p.Exclusions, p.EstimatedHours, p.RequiredInputs, p.Deliverables, p.RevisionAllowance, p.TurnaroundBusinessDays, p.PaymentEligible });
 });
 app.MapOrderIntake();
+app.MapStripeTest();
 app.Run();
 public partial class Program { }
