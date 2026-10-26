@@ -9,8 +9,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (request.headers.get('content-type')?.split(';')[0].trim().toLowerCase() !== 'application/json') return json('INVALID_CONTENT_TYPE',415);
   if (Number(request.headers.get('content-length') || 0) > 12000) return json('PAYLOAD_TOO_LARGE',413);
   let body: Inquiry;
-  try { body = await request.json() as Inquiry; } catch { return json('INVALID_JSON',400); }
-  if (!body || typeof body !== 'object' || JSON.stringify(body).length > 12000) return json('INVALID_PAYLOAD',400);
+  try {
+    const raw = await request.text();
+    if (new TextEncoder().encode(raw).byteLength > 12000) return json('PAYLOAD_TOO_LARGE',413);
+    body = JSON.parse(raw) as Inquiry;
+  } catch { return json('INVALID_JSON',400); }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return json('INVALID_PAYLOAD',400);
   if (typeof body.website === 'string' && body.website.trim()) return Response.json({ ok: true });
   const name = typeof body.name === 'string' ? body.name.trim() : '';
   const email = typeof body.email === 'string' ? body.email.trim() : '';
