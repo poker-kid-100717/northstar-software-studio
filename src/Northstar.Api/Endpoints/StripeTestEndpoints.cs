@@ -35,7 +35,7 @@ public static class StripeTestEndpoints
             var limits=cfg.GetSection("Capacity").Get<CapacityOptions>()??new();
             var capacity=await CapacityPolicy.CheckAsync(db,product,limits,now,ct);
             if(!capacity.Available) return Results.Conflict(new {error=capacity.Reason});
-            var order=new ServiceOrder{ServiceProductId=product.Id,CustomerName=r.CustomerName.Trim(),CustomerEmail=r.CustomerEmail.Trim(),ProblemDescription=r.ProblemDescription.Trim(),ReproductionSteps=r.ReproductionSteps.Trim(),PriceCents=product.PriceCents,PaymentEnvironment=PaymentEnvironment.StripeTest,ReservationExpiresAt=now.AddMinutes(30)};
+            var order=new ServiceOrder{ServiceProductId=product.Id,CustomerName=r.CustomerName.Trim(),CustomerEmail=r.CustomerEmail.Trim(),ProblemDescription=r.ProblemDescription.Trim(),ReproductionSteps=r.ReproductionSteps.Trim(),PriceCents=product.PriceCents,PaymentEnvironment=PaymentEnvironment.StripeTest,ReservationExpiresAt=now.AddMinutes(60)};
             db.ServiceOrders.Add(order);
             await db.SaveChangesAsync(ct);
             using var client=factory.CreateClient();
@@ -75,9 +75,10 @@ public static class StripeTestEndpoints
             var root=json.RootElement;
             var eventId=root.GetProperty("id").GetString()??"";
             var type=root.GetProperty("type").GetString();
-            if(type!="checkout.session.completed" && type!="checkout.session.async_payment_succeeded") return Results.Ok();
+            if(type!="checkout.session.completed" && type!="checkout.session.async_payment_succeeded" && type!="checkout.session.expired" && type!="checkout.session.async_payment_failed") return Results.Ok();
+            var isExpiration=type=="checkout.session.expired" || type=="checkout.session.async_payment_failed";
             var session=root.GetProperty("data").GetProperty("object");
-            if(session.GetProperty("payment_status").GetString()!="paid") return Results.Ok();
+            if(!isExpiration && session.GetProperty("payment_status").GetString()!="paid") return Results.Ok();
             if(!Guid.TryParse(session.GetProperty("client_reference_id").GetString(),out var id)) return Results.Ok();
             var sessionId=session.GetProperty("id").GetString();
             var amount=session.GetProperty("amount_total").GetInt32();
@@ -88,8 +89,16 @@ public static class StripeTestEndpoints
             if(await db.PaymentTransactions.AnyAsync(t=>t.Provider=="stripe" && t.ProviderEventId==eventId,ct)) return Results.Ok();
             var order=await db.ServiceOrders.SingleOrDefaultAsync(o=>o.Id==id,ct);
             if(order is null || order.StripeCheckoutSessionId!=sessionId || order.PriceCents!=amount || order.PaymentEnvironment!=PaymentEnvironment.StripeTest) return Results.BadRequest();
-            db.PaymentTransactions.Add(new PaymentTransaction{ServiceOrderId=id,Provider="stripe",ProviderEventId=eventId,ProviderPaymentId=sessionId??"",Environment=PaymentEnvironment.StripeTest,AmountCents=amount});
-            if(order.PaymentStatus==PaymentState.Pending)
+            if(!isExpiration) db.PaymentTransactions.Add(new PaymentTransaction{ServiceOrderId=id,Provider="stripe",ProviderEventId=eventId,ProviderPaymentId=sessionId??"",Environment=PaymentEnvironment.StripeTest,AmountCents=amount});
+            if(isExpiration)
+            {
+                if(order.Status==OrderStatus.PendingPayment)
+                {
+                    OrderWorkflow.Transition(order,OrderStatus.Cancelled,"stripe-session-ended");
+                    db.Entry(order.StatusHistory.Last()).State=EntityState.Added;
+                }
+            }
+            else if(order.PaymentStatus==PaymentState.Pending)
             {
                 order.PaymentStatus=PaymentState.Paid;
                 if(order.Status==OrderStatus.PendingPayment) { OrderWorkflow.Transition(order,OrderStatus.Paid,"stripe-test-webhook"); db.Entry(order.StatusHistory.Last()).State=EntityState.Added; }
