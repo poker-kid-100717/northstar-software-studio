@@ -1,0 +1,1 @@
+export interface ServiceProduct { id:string; slug:string; name:string; category:string; description:string; priceCents:number; scope:string; exclusions:string; turnaroundBusinessDays:number; paymentEligible:boolean; estimatedHours?:number; requiredInputs?:string; deliverables?:string; revisionAllowance?:number; }
