@@ -13,7 +13,7 @@ function decode64(input: string): Uint8Array {
   const bytes = atob(b64.padEnd(Math.ceil(b64.length / 4) * 4, '='));
   return Uint8Array.from(bytes, c => c.charCodeAt(0));
 }
-async function authorize(request: Request, env: Env): Promise<Response | null> {
+export async function authorize(request: Request, env: Env): Promise<Response | null> {
   if (!env.CF_ACCESS_TEAM_DOMAIN || !env.CF_ACCESS_AUD || !env.CF_ACCESS_ADMIN_EMAIL || !env.INQUIRIES_DB) return deny(503);
   const token = request.headers.get('Cf-Access-Jwt-Assertion');
   if (!token) return deny(401);
