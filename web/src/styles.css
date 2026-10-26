@@ -16,3 +16,10 @@
 .fixiq-panel input:not([type="checkbox"]){width:100%;font:inherit;border:1px solid #b9c7dc;border-radius:9px;padding:13px;background:#fff;color:#15233b;margin-bottom:20px}
 .fixiq-panel>select,.fixiq-panel>textarea{margin-bottom:20px}
 .inquiry-honeypot{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+
+/* Consultation form and portfolio-facing homepage */
+.fixiq-panel input,.fixiq-panel select,.fixiq-panel textarea{display:block;width:100%;font:inherit;border:1px solid #b9c7dc;border-radius:9px;padding:13px;background:#fff;color:#15233b;margin-bottom:20px}
+.fixiq-panel input:focus{outline:3px solid #b7cdfd;outline-offset:2px}
+.inquiry-honeypot{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+.hero{background:radial-gradient(ellipse at 88% 18%,#284b82 0%,#152947 38%,#101f3a 76%);min-height:560px}
+.hero .lead{max-width:780px}
