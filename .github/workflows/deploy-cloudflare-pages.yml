@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'web/**'
+      - 'functions/**'
       - '.github/workflows/deploy-cloudflare-pages.yml'
   workflow_dispatch:
 
@@ -43,6 +44,12 @@ jobs:
           find dist/northstar/browser -maxdepth 2 -type f | sort | head -50
           test "$(find dist/northstar/browser -maxdepth 1 -name 'main-*.js' | wc -l)" -gt 0
           echo 'Angular HTML and main JS bundle verified.'
+      - name: Include Pages Functions in deployment
+        run: |
+          set -eu
+          test -s ../functions/api/[[path]].ts
+          mkdir -p dist/northstar/browser/functions/api
+          cp '../functions/api/[[path]].ts' 'dist/northstar/browser/functions/api/[[path]].ts'
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
