@@ -44,13 +44,13 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env, params }
       return reply({ error: 'QUOTE_CONFLICT' }, 409);
 
     const eventId = crypto.randomUUID();
-    // A conditional audit insert aborts the entire atomic batch on a stale update.
+    // changes() gates the audit insert on the preceding conditional UPDATE.
     const results = await db.batch([
       db.prepare(
         "UPDATE service_quotes SET status = 'approved', expires_at = ?, approved_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'), approved_by = ?, version = version + 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ? AND status = 'draft' AND version = ?"
       ).bind(expiresAt, env.CF_ACCESS_ADMIN_EMAIL!, id, expectedVersion),
       db.prepare(
-        "INSERT INTO commerce_events (id,entity_type,entity_id,event_type,old_status,new_status,actor,details_json) VALUES (?,'quote',?,'approved','draft','approved',?,?)"
+        "INSERT INTO commerce_events (id,entity_type,entity_id,event_type,old_status,new_status,actor,details_json) SELECT ?,'quote',?,'approved','draft','approved',?,? WHERE changes() = 1"
       ).bind(eventId, id, env.CF_ACCESS_ADMIN_EMAIL!, JSON.stringify({ expiresAt }))
     ]);
     if (results[0]?.meta?.changes !== 1) return reply({ error: 'QUOTE_CONFLICT' }, 409);
