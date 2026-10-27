@@ -33,8 +33,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!name || name.length > 100 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 ||
       description.length < 30 || description.length > 3000 || !allowedTypes.has(projectType) ||
       !allowedBudgets.has(budget) || !allowedTimelines.has(timeline)) return json('INVALID_INQUIRY',400);
-  if (!env.RESEND_API_KEY || !env.CONSULTATION_FROM_EMAIL || !env.TURNSTILE_SECRET_KEY)
-    return json('INQUIRY_NOT_CONFIGURED',503);
+  // A submission is never accepted without durable storage and bot verification.
+  if (!env.INQUIRIES_DB) return json('INQUIRY_STORAGE_UNAVAILABLE',503);
+  if (!env.TURNSTILE_SECRET_KEY) return json('VERIFICATION_UNAVAILABLE',503);
   const ip = request.headers.get('CF-Connecting-IP');
   const token = typeof body.turnstileToken === 'string' ? body.turnstileToken : '';
   if (!token || token.length > 2048) return json('VERIFICATION_REQUIRED',400);
@@ -49,20 +50,22 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     if (!result.success || result.hostname !== new URL(request.url).hostname) return json('VERIFICATION_FAILED',403);
   } catch { return json('VERIFICATION_UNAVAILABLE',503); }
   const inquiryId = crypto.randomUUID();
-  let stored = false;
-  if (env.INQUIRIES_DB) {
-    try {
-      await env.INQUIRIES_DB.prepare(
-        'INSERT INTO consultation_inquiries (id,contact_name,contact_email,project_type,description,budget,timeline) VALUES (?,?,?,?,?,?,?)'
-      ).bind(inquiryId,name,email,projectType,description,budget,timeline).run();
-      stored = true;
-    } catch {
-      // Never send a notification for an inquiry that failed to persist when D1 is configured.
-      return json('INQUIRY_STORAGE_UNAVAILABLE',503);
-    }
+  try {
+    const saved = await env.INQUIRIES_DB.prepare(
+      'INSERT INTO consultation_inquiries (id,contact_name,contact_email,project_type,description,budget,timeline) VALUES (?,?,?,?,?,?,?)'
+    ).bind(inquiryId,name,email,projectType,description,budget,timeline).run() as { success?: boolean };
+    if (saved?.success === false) return json('INQUIRY_STORAGE_UNAVAILABLE',503);
+  } catch {
+    // Never send a notification when the write did not persist.
+    return json('INQUIRY_STORAGE_UNAVAILABLE',503);
   }
   const text = ['New Northstar consultation inquiry', 'Reference: '+inquiryId, 'Name: '+name, 'Email: '+email,
     'Project type: '+projectType, 'Budget: '+budget, 'Timeline: '+timeline, '', 'Description:', description].join('\n');
+  // A missing email configuration cannot discard a successfully persisted inquiry.
+  if (!env.RESEND_API_KEY || !env.CONSULTATION_FROM_EMAIL) {
+    await updateNotification('failed');
+    return Response.json({ ok: true, reference: inquiryId, stored: true, notification: 'pending' }, { headers: { 'Cache-Control': 'no-store' } });
+  }
   try {
     const upstream = await fetch('https://api.resend.com/emails', {
       method: 'POST', headers: { Authorization: 'Bearer '+env.RESEND_API_KEY, 'Content-Type': 'application/json' },
@@ -71,14 +74,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
         reply_to: email, subject: 'Northstar consultation inquiry: '+projectType, text })
     });
     if (!upstream.ok) {
-      if (!stored) return json('DELIVERY_FAILED',502);
       await updateNotification('failed');
       return Response.json({ ok: true, reference: inquiryId, stored: true, notification: 'pending' }, { headers: { 'Cache-Control': 'no-store' } });
     }
-    if (stored) await updateNotification('sent');
-    return Response.json({ ok: true, reference: inquiryId, stored, notification: 'sent' }, { headers: { 'Cache-Control': 'no-store' } });
+    await updateNotification('sent');
+    return Response.json({ ok: true, reference: inquiryId, stored: true, notification: 'sent' }, { headers: { 'Cache-Control': 'no-store' } });
   } catch {
-    if (!stored) return json('DELIVERY_FAILED',502);
     await updateNotification('failed');
     return Response.json({ ok: true, reference: inquiryId, stored: true, notification: 'pending' }, { headers: { 'Cache-Control': 'no-store' } });
   }
