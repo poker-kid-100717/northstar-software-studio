@@ -1,0 +1,25 @@
+name: Smoke deployed Northstar storefront
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Deploy storefront to Cloudflare Pages"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    # Never run when the upstream deploy failed.
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify public routes, Pages Function and anonymous admin denial
+        env:
+          NORTHSTAR_URL: https://northstar-software-studio.pages.dev
+        run: node scripts/smoke-storefront.mjs
