@@ -66,11 +66,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       .bind(input.inquiryId).first();
     if (!inquiry) return json({ error: 'INQUIRY_NOT_FOUND' }, 404);
     // Cloudflare D1 batch is atomic: either both the draft and audit event are written, or neither.
-    await env.INQUIRIES_DB!.batch([
-      env.INQUIRIES_DB!.prepare(
+    const database = env.INQUIRIES_DB! as NonNullable<Env['INQUIRIES_DB']> & { batch(statements: unknown[]): Promise<unknown> };
+    await database.batch([
+      database.prepare(
         'INSERT INTO service_quotes (id,inquiry_id,service_name,deliverables,exclusions,amount_cents) VALUES (?,?,?,?,?,?)'
       ).bind(id, input.inquiryId, input.serviceName, input.deliverables, input.exclusions, input.amountCents),
-      env.INQUIRIES_DB!.prepare(
+      database.prepare(
         "INSERT INTO commerce_events (id,entity_type,entity_id,event_type,new_status,actor) VALUES (?,'quote',?,'created','draft',?)"
       ).bind(eventId, id, env.CF_ACCESS_ADMIN_EMAIL!)
     ]);
