@@ -106,6 +106,14 @@ export class ConsultationComponent implements OnInit, OnDestroy {
   }
   ngOnDestroy(): void { this.destroyed = true; if (this.widgetId && window.turnstile) window.turnstile.remove(this.widgetId); }
 
+  private submissionError(status: number, code?: string): string {
+    if (code === 'VERIFICATION_FAILED' || status === 403) return 'Spam verification was not accepted. Complete the new security check and try again. Your answers are saved on this page.';
+    if (code === 'INVALID_INQUIRY' || status === 400 || status === 413 || status === 415) return 'Please review the form fields and try again. Your answers are still here.';
+    if (code === 'INQUIRY_STORAGE_UNAVAILABLE' || status === 503) return 'Our inquiry system is temporarily unavailable. Your request was not saved. Please try again later; your answers are still here.';
+    if (status === 502) return 'Email delivery is unavailable right now. Your answers are still here. Please try again later.';
+    return 'Your request could not be submitted. Your answers are still here. Please try again.';
+  }
+
   async submit(): Promise<void> {
     if (this.submitting) return;
     if (this.contactName.trim().length < 1 || this.projectDescription.trim().length < 30 || !this.turnstileToken || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.contactEmail.trim())) {
@@ -120,7 +128,10 @@ export class ConsultationComponent implements OnInit, OnDestroy {
         body: JSON.stringify({ name: this.contactName, email: this.contactEmail, projectType: this.projectType,
           description: this.selectedService ? "Requested service: " + this.selectedService + "\n" + this.projectDescription : this.projectDescription, budget: this.budget, timeline: this.timeline, website: this.website, turnstileToken: this.turnstileToken })
       });
-      if (!response.ok) throw new Error('Inquiry delivery is not available.');
+      if (!response.ok) {
+        const code = await response.json().then((body: { error?: string }) => body.error).catch(() => '');
+        throw new Error(this.submissionError(response.status, code));
+      }
       const result = await response.json() as { ok?: boolean; reference?: string; stored?: boolean; notification?: string };
       if (!result.ok) throw new Error('Inquiry was not accepted.');
       this.reference = result.stored && result.reference ? result.reference : '';
@@ -128,9 +139,9 @@ export class ConsultationComponent implements OnInit, OnDestroy {
       this.submittedEmail = this.contactEmail.trim();
       this.sent = true;
       this.message = '';
-    } catch {
+    } catch (cause) {
       this.error = true;
-      this.message = 'Your request was not sent. Your answers are still here — please try again in a moment. If this continues, contact us directly.';
+      this.message = cause instanceof Error && cause.message ? cause.message : 'Connection lost. Your answers are still here. Check your internet connection and try again.';
     } finally {
       this.submitting = false;
       this.turnstileToken = '';
