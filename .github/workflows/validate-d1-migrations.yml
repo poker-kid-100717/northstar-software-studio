@@ -1,0 +1,38 @@
+name: Validate D1 migrations
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  migrations:
+    name: D1 fresh and upgrade validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Validate migration sequence, upgrades and schema guard regressions
+        run: node --test tests/d1-migrations.test.mjs
+      - name: Validate fresh schema integrity
+        run: node scripts/validate-d1-migrations.mjs
+  live-schema:
+    name: Read-only production D1 schema check
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    needs: migrations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Check required live tables, columns, constraints, indexes and triggers
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_D1_DATABASE_ID: ${{ vars.CLOUDFLARE_D1_DATABASE_ID }}
+          CLOUDFLARE_D1_READ_TOKEN: ${{ secrets.CLOUDFLARE_D1_READ_TOKEN }}
+        run: node scripts/validate-d1-migrations.mjs --remote
