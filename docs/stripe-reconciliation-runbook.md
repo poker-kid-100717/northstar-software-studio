@@ -14,6 +14,7 @@
 
 1. Use Stripe **test mode** dashboard and the correct staging D1 binding. Do not paste API keys or full customer information into a ticket.
 2. Query orders with `status='awaiting_payment'` and a non-null `provider_checkout_session_id`, ordered oldest first. Record only order ID, session ID and timestamps.
+2a. Separately query orders marked `paid` but not yet fulfilled, and verify the provider session remains paid and its payment intent has no refund or dispute. Pause fulfillment and investigate any mismatch. Do not infer Stripe state from D1 alone.
 3. Retrieve each matching session **from Stripe** using a secret stored in the runtime, not browser input. Verify `livemode=false`, `payment_status=paid`, matching `client_reference_id`, `metadata.order_id`, `amount_total`, `currency`, and payment intent.
 4. Compare against `payment_webhook_events` and `commerce_events`. A paid session without a paid order is an exception; investigate webhook delivery and endpoint configuration.
 5. Use Stripe's supported event redelivery/retry tooling for the exact signed event after fixing the cause. **Do not manually UPDATE the order to paid** or synthesize a webhook signature.
@@ -26,8 +27,16 @@
 SELECT id, status, amount_cents, currency, provider_checkout_session_id,
        provider_payment_intent_id, paid_at, updated_at
 FROM service_orders
-WHERE provider_checkout_session_id IS NOT NULL
-ORDER BY updated_at DESC LIMIT 100;
+WHERE provider_checkout_session_id IS NOT NULL AND status='awaiting_payment'
+ORDER BY updated_at ASC LIMIT 100;
+
+-- Separate second pass: verify locally paid but unfulfilled orders with Stripe.
+-- Confirm which statuses denote fulfillment before changing this predicate.
+SELECT id, status, amount_cents, currency, provider_checkout_session_id,
+       provider_payment_intent_id, paid_at, updated_at
+FROM service_orders
+WHERE status='paid' AND provider_checkout_session_id IS NOT NULL
+ORDER BY paid_at ASC LIMIT 100;
 
 SELECT provider_event_id, event_type, order_id, received_at, processed_at
 FROM payment_webhook_events
