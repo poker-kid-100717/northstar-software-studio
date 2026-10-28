@@ -5,7 +5,9 @@
   "scripts": {
     "start": "ng serve --proxy-config proxy.conf.json",
     "build": "ng build",
-    "test": "ng test --watch=false"
+    "test": "node --test ../tests/inquiries.test.mjs ../tests/d1-migrations.test.mjs",
+    "test:e2e": "playwright test",
+    "typecheck:functions": "tsc -p tsconfig.functions.json"
   },
   "dependencies": {
     "@angular/animations": "^20.3.0",
@@ -23,6 +25,8 @@
     "@angular/build": "^20.3.0",
     "@angular/cli": "^20.3.0",
     "@angular/compiler-cli": "^20.3.0",
+    "@axe-core/playwright": "^4.14.0",
+    "@playwright/test": "^1.64.1",
     "typescript": "~5.9.0"
   }
 }
