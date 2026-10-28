@@ -32,6 +32,14 @@
 - Current API downloads JWKS per request; cache/rotation and availability tests can be a later hardening PR.
 - Do not mark #57 complete until anonymous and non-owner browser checks have been performed against production.
 
+## Recovery when dashboard loads but API fetch redirects
+Cloudflare may have separate Access applications for `/admin` and `/api/admin/*`. A successful login for `/admin` does **not** necessarily establish the API application's own session. Cross-origin Access sign-in redirects initiated by `fetch()` generally fail as CORS errors; never fix this by enabling CORS on the login service or weakening token validation.
+
+1. In the **same browser profile**, open `/api/admin/inquiries` as a top-level navigation in a separate tab. Complete that application's Cloudflare Access authentication. A resulting JSON response indicates API authentication succeeded (do not publish any returned PII).
+2. Return to `/admin`, click Refresh. The authenticated request should now be able to reach the API.
+3. For a durable configuration fix, prefer one Access application covering `/admin`, `/admin/*`, `/api/admin` and `/api/admin/*` where Cloudflare permits multiple destinations. Verify path coverage, selected identity providers, and owner-only allow policy. Update Pages `CF_ACCESS_AUD` to the consolidated application's AUD only as part of a controlled configuration change; the API deliberately rejects JWTs for another audience.
+4. Validate the full manual test matrix after a configuration change. Do **not** delete any existing Access application before all paths are proven protected.
+
 ## Release gate
 1. Automated source checks green.
 2. Owner confirms all manual security cases.
