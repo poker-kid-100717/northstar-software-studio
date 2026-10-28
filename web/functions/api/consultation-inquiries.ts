@@ -1,10 +1,11 @@
 interface InquiryDb { prepare(sql: string): { bind(...values: unknown[]): { run(): Promise<unknown> } } }
-interface Env { INQUIRIES_DB?: InquiryDb; RESEND_API_KEY?: string; CONSULTATION_FROM_EMAIL?: string; TURNSTILE_SITE_KEY?: string; TURNSTILE_SECRET_KEY?: string; }
+interface Env { INQUIRIES_DB?: InquiryDb; RESEND_API_KEY?: string; CONSULTATION_FROM_EMAIL?: string; CONSULTATION_NOTIFY_EMAIL?: string; TURNSTILE_SITE_KEY?: string; TURNSTILE_SECRET_KEY?: string; }
 interface Inquiry { name?: unknown; email?: unknown; projectType?: unknown; description?: unknown; budget?: unknown; timeline?: unknown; website?: unknown; turnstileToken?: unknown; }
 const allowedTypes = new Set(['software-repair','integration','automation','application','other']);
 const allowedBudgets = new Set(['unsure','under-250','250-1000','1000-5000','5000-plus']);
 const allowedTimelines = new Set(['flexible','this-week','2-4-weeks','later']);
-const recipient = 'joshuad100717@outlook.com';
+const defaultRecipient = 'joshuad100717@outlook.com';
+const isEmail = (value: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && value.length <= 254;
 const json = (message: string, status: number) => Response.json({ error: message }, { status, headers: { 'Cache-Control': 'no-store' } });
 export const onRequestGet: PagesFunction<Env> = async ({ env }) =>
   Response.json({ siteKey: env.TURNSTILE_SITE_KEY ?? null }, { headers: { 'Cache-Control': 'no-store' } });
@@ -59,10 +60,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     // Never send a notification when the write did not persist.
     return json('INQUIRY_STORAGE_UNAVAILABLE',503);
   }
+  const recipient = (env.CONSULTATION_NOTIFY_EMAIL || defaultRecipient).trim();
   const text = ['New Northstar consultation inquiry', 'Reference: '+inquiryId, 'Name: '+name, 'Email: '+email,
     'Project type: '+projectType, 'Budget: '+budget, 'Timeline: '+timeline, '', 'Description:', description].join('\n');
   // A missing email configuration cannot discard a successfully persisted inquiry.
-  if (!env.RESEND_API_KEY || !env.CONSULTATION_FROM_EMAIL) {
+  if (!env.RESEND_API_KEY || !env.CONSULTATION_FROM_EMAIL || !isEmail(recipient)) {
     await updateNotification('failed');
     return Response.json({ ok: true, reference: inquiryId, stored: true, notification: 'pending' }, { headers: { 'Cache-Control': 'no-store' } });
   }
