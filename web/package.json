@@ -5,7 +5,7 @@
   "scripts": {
     "start": "ng serve --proxy-config proxy.conf.json",
     "build": "ng build",
-    "test": "node --test ../tests/inquiries.test.mjs ../tests/d1-migrations.test.mjs",
+    "test": "node --test ../tests/inquiries.test.mjs ../tests/d1-migrations.test.mjs ../tests/stripe-webhook.test.mjs",
     "test:e2e": "playwright test",
     "typecheck:functions": "tsc -p tsconfig.functions.json"
   },
