@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 interface Activity { id:string; kind:'note'|'status'; body:string|null; old_status:string|null; new_status:string|null; actor:string; created_at:string }
+interface Quote { id:string; service_name:string; deliverables:string; exclusions:string; amount_cents:number; status:string; version:number; expires_at:string|null }
 interface Inquiry { id:string; created_at:string; contact_name:string; contact_email:string; project_type:string; description:string; budget:string; timeline:string; status:string; notification_status:string }
 @Component({
  standalone:true, imports:[DatePipe,DecimalPipe,FormsModule],
@@ -54,6 +55,29 @@ interface Inquiry { id:string; created_at:string; contact_name:string; contact_e
            @if (savingStatus) { <p role="status">Saving status…</p> }
            @if (statusError) { <p role="alert" class="ns-admin-error">{{statusError}}</p> }
            @if (statusSaved) { <p role="status">Status saved.</p> }
+           <section class="ns-admin-activity" aria-label="Service quotes">
+             <h3>Service quotes</h3>
+             <p class="muted">Draft and approve scope before sending any customer payment request. Approving does not charge a customer.</p>
+             @if (quotesError) { <p role="alert" class="ns-admin-error">{{quotesError}}</p> }
+             @if (quotesLoading) { <p role="status">Loading quotes…</p> }
+             @for (quote of quotes; track quote.id) {
+               <article>
+                 <strong>{{quote.service_name}} · {{quote.status}}</strong>
+                 <p>{{quote.deliverables}}</p>
+                 <p>USD {{quote.amount_cents / 100 | number:'1.2-2'}} · Version {{quote.version}}</p>
+                 @if (quote.status === 'draft') {
+                   <button type="button" class="button secondary" [disabled]="savingQuote" (click)="approveQuote(quote)">Approve quote (no payment)</button>
+                 }
+               </article>
+             }
+             <form (submit)="createQuote($event)">
+               <label>Service name <input name="quoteName" [(ngModel)]="quoteName" maxlength="120" required></label>
+               <label>Deliverables <textarea name="quoteDeliverables" [(ngModel)]="quoteDeliverables" maxlength="4000" required rows="3"></textarea></label>
+               <label>Exclusions <textarea name="quoteExclusions" [(ngModel)]="quoteExclusions" maxlength="4000" rows="2"></textarea></label>
+               <label>Quoted amount in USD <input name="quoteAmount" [(ngModel)]="quoteAmount" type="number" min="0.01" max="1000000" step="0.01" required></label>
+               <button type="submit" class="button secondary" [disabled]="savingQuote || !quoteName.trim() || !quoteDeliverables.trim()">{{savingQuote ? 'Saving…' : 'Save draft quote'}}</button>
+             </form>
+           </section>
            <h3>What the customer needs</h3>
            <p class="ns-admin-description">{{selected.description}}</p>
            <p class="muted">Reference: {{selected.id}}</p>
@@ -83,6 +107,7 @@ interface Inquiry { id:string; created_at:string; contact_name:string; contact_e
 })
 export class AdminInquiriesComponent implements OnInit {
  inquiries:Inquiry[]=[]; selected:Inquiry|null=null; authenticated=false; loading=false; error=''; needsLogin=false; search=''; status='all'; limit=50; savingStatus=false; statusError=''; statusSaved=false; activity:Activity[]=[]; activityLoading=false; activityError=''; noteDraft=''; savingNote=false;
+ quotes:Quote[]=[]; quotesError=''; quotesLoading=false; savingQuote=false; quoteName=''; quoteDeliverables=''; quoteExclusions=''; quoteAmount=100;
  readonly statuses=['new','reviewing','contacted','qualified','quoted','won','lost','archived'];
  get filtered():Inquiry[] { const q=this.search.trim().toLowerCase(); return this.inquiries.filter(i=>!q || [i.contact_name,i.contact_email,i.project_type,i.description,i.id].some(x=>x.toLowerCase().includes(q))); }
  encodeSubject(id:string):string { return encodeURIComponent('Northstar inquiry '+id); }
@@ -101,7 +126,7 @@ export class AdminInquiriesComponent implements OnInit {
    } catch(e) { this.statusError=e instanceof Error?e.message:'Unable to save status.'; }
    finally {this.savingStatus=false;}
  }
- selectInquiry(inquiry:Inquiry):void { this.selected=inquiry;this.noteDraft='';void this.loadActivity(); }
+ selectInquiry(inquiry:Inquiry):void { this.selected=inquiry;this.noteDraft='';void this.loadActivity();void this.loadQuotes(); }
  async loadActivity():Promise<void> {
    const id=this.selected?.id;
    this.activity=[];this.activityError='';if(!id)return;
@@ -125,6 +150,44 @@ export class AdminInquiriesComponent implements OnInit {
    } catch(e){this.activityError=e instanceof Error?e.message:'Could not save note';}
    finally{this.savingNote=false;}
  }
+ async loadQuotes():Promise<void> {
+   const id=this.selected?.id;
+   this.quotes=[];this.quotesError='';
+   if(!id)return;
+   this.quotesLoading=true;
+   try {
+     const response=await fetch('/api/admin/quotes?inquiryId='+encodeURIComponent(id),{credentials:'same-origin',cache:'no-store'});
+     if(!response.ok || response.redirected) throw new Error('Could not load quotes. Verify admin API access and commerce migration 0003.');
+     const data=await response.json() as {quotes:Quote[]};
+     if(this.selected?.id===id)this.quotes=data.quotes??[];
+   } catch(e){if(this.selected?.id===id)this.quotesError=e instanceof Error?e.message:'Quote list unavailable';}
+   finally{if(this.selected?.id===id)this.quotesLoading=false;}
+ }
+ async createQuote(event:Event):Promise<void> {
+   event.preventDefault();
+   const id=this.selected?.id;
+   if(!id || this.savingQuote)return;
+   const cents=Math.round(Number(this.quoteAmount)*100);
+   if(!Number.isSafeInteger(cents)||cents<1||cents>100000000||!this.quoteName.trim()||!this.quoteDeliverables.trim()){this.quotesError='Check quote fields and amount.';return;}
+   this.savingQuote=true;this.quotesError='';
+   try {
+     const response=await fetch('/api/admin/quotes',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({inquiryId:id,serviceName:this.quoteName.trim(),deliverables:this.quoteDeliverables.trim(),exclusions:this.quoteExclusions.trim(),amountCents:cents})});
+     if(!response.ok || response.redirected)throw new Error('Quote could not be saved (HTTP '+response.status+').');
+     this.quoteName='';this.quoteDeliverables='';this.quoteExclusions='';await this.loadQuotes();
+   } catch(e){this.quotesError=e instanceof Error?e.message:'Quote unavailable';}
+   finally{this.savingQuote=false;}
+ }
+ async approveQuote(quote:Quote):Promise<void> {
+   if(this.savingQuote || quote.status!=='draft')return;
+   const expiry=new Date(Date.now()+14*86400000).toISOString();
+   this.savingQuote=true;this.quotesError='';
+   try {
+     const response=await fetch('/api/admin/quotes/'+encodeURIComponent(quote.id)+'/approve',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({expectedVersion:quote.version,expiresAt:expiry})});
+     if(!response.ok || response.redirected)throw new Error(response.status===409?'Quote changed; reload before approving.':'Quote approval failed (HTTP '+response.status+').');
+     await this.loadQuotes();
+   }catch(e){this.quotesError=e instanceof Error?e.message:'Approval unavailable';}
+   finally{this.savingQuote=false;}
+ }
  ngOnInit():void { void this.load(); }
  async load():Promise<void> {
    this.loading=true;this.error='';this.needsLogin=false;this.authenticated=false;this.statusError='';this.statusSaved=false;
@@ -137,7 +200,7 @@ export class AdminInquiriesComponent implements OnInit {
      this.authenticated=true;
      const previous=this.selected?.id;
      this.selected=this.inquiries.find(i=>i.id===previous)??this.inquiries[0]??null;
-     if(this.selected?.id!==previous) { this.noteDraft='';void this.loadActivity(); }
+     if(this.selected?.id!==previous) { this.noteDraft='';void this.loadActivity();void this.loadQuotes(); }
    } catch(e) { if(e instanceof TypeError) { this.needsLogin=true; this.error='The secure login was redirected outside the application. Authenticate the inquiry API in a new tab, then return here and refresh.'; } else { this.error=e instanceof Error?e.message:'An unexpected error occurred.'; } }
    finally {this.loading=false;}
  }
