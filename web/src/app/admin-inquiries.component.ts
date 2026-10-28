@@ -18,7 +18,7 @@ interface Inquiry { id:string; created_at:string; contact_name:string; contact_e
      </select></label>
      <button type="button" class="button secondary" (click)="load()" [disabled]="loading">Refresh</button>
    </div>
-   @if (needsLogin) { <div class="ns-admin-error" role="alert"><strong>Sign in to manage inquiries</strong><p>Cloudflare Access needs an authenticated session before the dashboard can retrieve private customer records.</p><a class="button primary" href="/api/admin/inquiries" target="_self">Continue to secure sign-in</a><p class="fineprint">After signing in, return to /admin and click Refresh.</p></div> }
+   @if (needsLogin) { <div class="ns-admin-error" role="alert"><strong>Sign in to manage inquiries</strong><p>Cloudflare Access needs an authenticated session before the dashboard can retrieve private customer records.</p><a class="button primary" href="/admin">Continue to secure sign-in</a><p class="fineprint">This opens the protected admin dashboard. After Cloudflare Access sign-in, return here and click Refresh if needed.</p></div> }
    @if (loading) { <p role="status">Loading your inquiries…</p> }
    @if (error) { <div class="ns-admin-error" role="alert"><strong>Unable to load inquiries.</strong><p>{{error}}</p><button class="button secondary" (click)="load()">Try again</button></div> }
    @if (!loading && !error) {
