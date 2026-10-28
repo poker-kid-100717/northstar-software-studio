@@ -1,0 +1,39 @@
+name: Staging end-to-end acceptance
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  staging:
+    runs-on: ubuntu-latest
+    environment: northstar-staging
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - name: Staging business acceptance
+        env:
+          NORTHSTAR_STAGING_URL: ${{ vars.NORTHSTAR_STAGING_URL }}
+          STAGING_CF_ACCESS_JWT: ${{ secrets.STAGING_CF_ACCESS_JWT }}
+          STAGING_TURNSTILE_TEST_TOKEN: ${{ secrets.STAGING_TURNSTILE_TEST_TOKEN }}
+          STAGING_QUOTE_TOKEN: ${{ secrets.STAGING_QUOTE_TOKEN }}
+        run: npx playwright test --config playwright.staging.config.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: northstar-staging-e2e-report
+          path: |
+            web/staging-report/
+            web/staging-results.xml
+            web/test-results/
+          retention-days: 7
+          if-no-files-found: warn
