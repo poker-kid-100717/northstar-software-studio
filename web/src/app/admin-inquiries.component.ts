@@ -3,7 +3,7 @@ import { DatePipe, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 interface Activity { id:string; kind:'note'|'status'; body:string|null; old_status:string|null; new_status:string|null; actor:string; created_at:string }
 interface Quote { id:string; service_name:string; deliverables:string; exclusions:string; amount_cents:number; status:string; version:number; expires_at:string|null }
-interface Inquiry { id:string; created_at:string; contact_name:string; contact_email:string; project_type:string; description:string; budget:string; timeline:string; status:string; notification_status:string }
+interface Inquiry { id:string; created_at:string; contact_name:string; contact_email:string; project_type:string; description:string; budget:string; timeline:string; status:string; notification_status:string; notification_attempts:number; last_notification_error:string|null; read_at:string|null; follow_up_at:string|null; duplicate_count:number; selected_service:string; source:string }
 @Component({
  standalone:true, imports:[DatePipe,DecimalPipe,FormsModule],
  template:`
@@ -16,26 +16,31 @@ interface Inquiry { id:string; created_at:string; contact_name:string; contact_e
      <a class="button secondary" href="/cdn-cgi/access/logout">Sign out</a>
    </div>
    <div class="ns-admin-toolbar">
-     <label>Search inquiries <input [(ngModel)]="search" placeholder="Name, email, project, or reference" aria-label="Search inquiries"></label>
-     <label>Status <select [(ngModel)]="status" (ngModelChange)="load()">
+     <label>Search inquiries <input [(ngModel)]="search" (ngModelChange)="offset=0;load()" placeholder="Name, email, project, or reference" aria-label="Search inquiries"></label>
+     <label>Status <select [(ngModel)]="status" (ngModelChange)="offset=0;load()">
        <option value="all">All statuses</option>
        @for (s of statuses; track s) { <option [value]="s">{{s}}</option> }
      </select></label>
+     <label>Sort <select [(ngModel)]="sort" (ngModelChange)="offset=0;load()"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="followup">Follow-up due</option></select></label>
+     <a class="button secondary" href="/api/admin/inquiries/export">Export newest 500 (CSV)</a>
+     <button type="button" class="button secondary" (click)="retryNotifications()" [disabled]="retrying">Retry due notifications</button>
      <button type="button" class="button secondary" (click)="load()" [disabled]="loading">Refresh</button>
    </div>
+   @if (actionMessage) { <p role="status">{{actionMessage}}</p> }
    @if (needsLogin) { <div class="ns-admin-error" role="alert"><strong>Sign in to manage inquiries</strong><p>Cloudflare Access needs an authenticated session before the dashboard can retrieve private customer records.</p><a class="button primary" href="/api/admin/inquiries" target="_blank" rel="noopener noreferrer">Authenticate inquiry API (new tab)</a><p class="fineprint">Cloudflare Access protects the inquiry API separately. Sign in in the new tab, then return to this dashboard and click Refresh. If the new tab shows JSON, authentication succeeded; close that tab without sharing its contents.</p></div> }
    @if (loading) { <p role="status">Loading your inquiries…</p> }
    @if (error) { <div class="ns-admin-error" role="alert"><strong>Unable to load inquiries.</strong><p>{{error}}</p><button class="button secondary" (click)="load()">Try again</button></div> }
    @if (!loading && !error) {
-     <p class="muted" role="status">{{filtered.length | number}} shown · Up to {{limit}} most recent records for the selected status</p>
+     <p class="muted" role="status">{{unread}} unread · {{total}} matching · {{filtered.length | number}} shown</p>
      @if (!filtered.length) { <div class="ns-admin-empty"><h2>No matching inquiries</h2><p>Try another search or status. New customer requests will appear here after they are saved.</p></div> }
+     <div class="ns-admin-toolbar"><button class="button secondary" (click)="page(-1)" [disabled]="offset===0">Previous</button><button class="button secondary" (click)="page(1)" [disabled]="offset+limit>=total">Next</button></div>
      <div class="ns-admin-grid">
        <div class="ns-admin-list" aria-label="Inquiries">
          @for (inquiry of filtered; track inquiry.id) {
            <button type="button" class="ns-admin-item" [class.active]="selected?.id===inquiry.id" (click)="selectInquiry(inquiry)" [attr.aria-pressed]="selected?.id===inquiry.id">
              <span class="ns-admin-item-head"><strong>{{inquiry.contact_name}}</strong><span class="ns-admin-status">{{inquiry.status}}</span></span>
              <span>{{inquiry.project_type}} · {{inquiry.created_at | date:'mediumDate'}}</span>
-             <small>{{inquiry.contact_email}}</small>
+             <small>{{inquiry.contact_email}} @if (!inquiry.read_at) { · Unread } @if (inquiry.duplicate_count) { · Possible duplicate }</small>
            </button>
          }
        </div>
@@ -47,11 +52,14 @@ interface Inquiry { id:string; created_at:string; contact_name:string; contact_e
            <dl>
              <div><dt>Received</dt><dd>{{selected.created_at | date:'medium'}}</dd></div>
              <div><dt>Status</dt><dd><label for="inquiry-status">Update status</label><select id="inquiry-status" [ngModel]="selected.status" (ngModelChange)="changeStatus($event)" [disabled]="savingStatus">@for (s of statuses; track s) { <option [value]="s">{{s}}</option> }</select></dd></div>
-             <div><dt>Email notification</dt><dd>{{selected.notification_status}}</dd></div>
+             <div><dt>Email notification</dt><dd>{{selected.notification_status}} · {{selected.notification_attempts}} attempts @if (selected.last_notification_error) { · Delivery needs attention }</dd></div>
              <div><dt>Project type</dt><dd>{{selected.project_type}}</dd></div>
              <div><dt>Budget</dt><dd>{{selected.budget}}</dd></div>
              <div><dt>Timeline</dt><dd>{{selected.timeline}}</dd></div>
            </dl>
+           <p>Service: {{selected.selected_service || "Not specified"}} · Source: {{selected.source}}</p>
+           <label>Follow-up due <input type="datetime-local" [(ngModel)]="followUp"></label><button class="button secondary" (click)="saveFollowUp()">Save follow-up</button>
+           @if (selected.status === "archived") { <label>Type the reference to permanently delete <input [(ngModel)]="deleteConfirmation"></label><button class="button secondary" (click)="deleteInquiry()" [disabled]="deleteConfirmation!==selected.id || deleting">Delete archived inquiry</button> }
            @if (savingStatus) { <p role="status">Saving status…</p> }
            @if (statusError) { <p role="alert" class="ns-admin-error">{{statusError}}</p> }
            @if (statusSaved) { <p role="status">Status saved.</p> }
@@ -108,8 +116,9 @@ interface Inquiry { id:string; created_at:string; contact_name:string; contact_e
 export class AdminInquiriesComponent implements OnInit {
  inquiries:Inquiry[]=[]; selected:Inquiry|null=null; authenticated=false; loading=false; error=''; needsLogin=false; search=''; status='all'; limit=50; savingStatus=false; statusError=''; statusSaved=false; activity:Activity[]=[]; activityLoading=false; activityError=''; noteDraft=''; savingNote=false;
  quotes:Quote[]=[]; quotesError=''; quotesLoading=false; savingQuote=false; quoteName=''; quoteDeliverables=''; quoteExclusions=''; quoteAmount=100;
+ offset=0; total=0; unread=0; sort='newest'; followUp=''; deleteConfirmation=''; deleting=false; retrying=false; actionMessage='';
  readonly statuses=['new','reviewing','contacted','qualified','quoted','won','lost','archived'];
- get filtered():Inquiry[] { const q=this.search.trim().toLowerCase(); return this.inquiries.filter(i=>!q || [i.contact_name,i.contact_email,i.project_type,i.description,i.id].some(x=>x.toLowerCase().includes(q))); }
+ get filtered():Inquiry[] { return this.inquiries; }
  encodeSubject(id:string):string { return encodeURIComponent('Northstar inquiry '+id); }
  async changeStatus(next:string):Promise<void> {
    const item=this.selected;
@@ -121,12 +130,12 @@ export class AdminInquiriesComponent implements OnInit {
      });
      if(!response.ok || response.redirected) throw new Error(response.status===401||response.status===403?'Your admin session expired. Sign in again.':'Unable to save status. Please retry.');
      item.status=next;
-     this.statusSaved=true;
-     if(this.status!=='all' && this.status!==next) { this.inquiries=this.inquiries.filter(i=>i.id!==item.id); this.selected=this.inquiries[0]??null; }
+     this.statusSaved=true;void this.loadActivity();
+     if(this.status!=='all' && this.status!==next) { this.inquiries=this.inquiries.filter(i=>i.id!==item.id); this.selected=this.inquiries[0]??null; if(this.selected)this.selectInquiry(this.selected); }
    } catch(e) { this.statusError=e instanceof Error?e.message:'Unable to save status.'; }
    finally {this.savingStatus=false;}
  }
- selectInquiry(inquiry:Inquiry):void { this.selected=inquiry;this.noteDraft='';void this.loadActivity();void this.loadQuotes(); }
+ selectInquiry(inquiry:Inquiry):void { this.selected=inquiry;this.noteDraft='';this.deleteConfirmation='';this.followUp=inquiry.follow_up_at ? new Date(Date.parse(inquiry.follow_up_at)-new Date(inquiry.follow_up_at).getTimezoneOffset()*60000).toISOString().slice(0,16):'';void this.loadActivity();void this.loadQuotes();if(!inquiry.read_at)void this.updateMetadata(inquiry,{read:true}); }
  async loadActivity():Promise<void> {
    const id=this.selected?.id;
    this.activity=[];this.activityError='';if(!id)return;
@@ -188,20 +197,59 @@ export class AdminInquiriesComponent implements OnInit {
    }catch(e){this.quotesError=e instanceof Error?e.message:'Approval unavailable';}
    finally{this.savingQuote=false;}
  }
+ async updateMetadata(item:Inquiry,body:object):Promise<void> {
+   let response:Response;
+   try { response=await fetch('/api/admin/inquiries/'+encodeURIComponent(item.id),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); }
+   catch { this.actionMessage='Update failed. Check your connection and try again.';return; }
+   if(!response.ok || response.redirected) { this.actionMessage='Update failed. Check your session and try again.';return; }
+   if('read' in body && !item.read_at){item.read_at=new Date().toISOString();this.unread=Math.max(0,this.unread-1);}
+   if('followUpAt' in body){item.follow_up_at=body.followUpAt as string|null;this.actionMessage='Follow-up saved.';}
+ }
+ async saveFollowUp():Promise<void> {
+   if(!this.selected)return;
+   try { await this.updateMetadata(this.selected,{followUpAt:this.followUp ? new Date(this.followUp).toISOString():null}); }
+   catch {this.actionMessage='Follow-up could not be saved.';}
+ }
+ async deleteInquiry():Promise<void> {
+   if(!this.selected || this.deleting || this.deleteConfirmation!==this.selected.id)return;
+   this.deleting=true;
+   try {
+     const response=await fetch('/api/admin/inquiries/'+encodeURIComponent(this.selected.id),{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirmReference:this.deleteConfirmation})});
+     if(!response.ok || response.redirected)throw new Error();
+     this.selected=null;this.actionMessage='Archived inquiry deleted.';await this.load();
+   } catch {this.actionMessage='Deletion failed. Archive first; inquiries linked to quotes are protected.';}
+   finally {this.deleting=false;}
+ }
+ async retryNotifications():Promise<void> {
+   if(this.retrying)return;this.retrying=true;
+   try {
+     const response=await fetch('/api/admin/inquiries/retry',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+     if(!response.ok || response.redirected)throw new Error();
+     const data=await response.json() as {processed:number;sent:number};
+     this.actionMessage=data.sent+' sent from '+data.processed+' due notifications.';await this.load();
+   } catch {this.actionMessage='Retry unavailable. Check your session and notification configuration.';}
+   finally {this.retrying=false;}
+ }
+ page(direction:number):void {this.offset=Math.max(0,this.offset+direction*this.limit);void this.load();}
+
  ngOnInit():void { void this.load(); }
+ private loadSequence=0;
  async load():Promise<void> {
+   const sequence=++this.loadSequence;
    this.loading=true;this.error='';this.needsLogin=false;this.authenticated=false;this.statusError='';this.statusSaved=false;
    try {
-     const response=await fetch('/api/admin/inquiries?status='+encodeURIComponent(this.status)+'&limit='+this.limit,{cache:'no-store',credentials:'same-origin'});
+     const response=await fetch('/api/admin/inquiries?status='+encodeURIComponent(this.status)+'&limit='+this.limit+'&offset='+this.offset+'&q='+encodeURIComponent(this.search)+'&sort='+this.sort,{cache:'no-store',credentials:'same-origin'});
      if(response.redirected || response.url.includes('/cdn-cgi/access/login') || response.status===401 || response.status===403) { this.needsLogin=true; throw new Error('Your Cloudflare Access session needs to be established or renewed. Authenticate the inquiry API in a new tab, then retry.'); }
      if(!response.ok) throw new Error(response.status===401||response.status===403?'Your admin session is not authorized. Sign in through Cloudflare Access and try again.':response.status===503?'The admin API is not fully configured yet. Check Cloudflare Access settings and D1 binding.':'The server returned HTTP '+response.status+'.');
-     const data=await response.json() as {inquiries?:Inquiry[]};
+     const data=await response.json() as {inquiries?:Inquiry[];total:number;unread:number};
+     if(sequence!==this.loadSequence)return;
+     this.total=data.total;this.unread=data.unread;
      this.inquiries=data.inquiries??[];
      this.authenticated=true;
      const previous=this.selected?.id;
      this.selected=this.inquiries.find(i=>i.id===previous)??this.inquiries[0]??null;
-     if(this.selected?.id!==previous) { this.noteDraft='';void this.loadActivity();void this.loadQuotes(); }
-   } catch(e) { if(e instanceof TypeError) { this.needsLogin=true; this.error='The secure login was redirected outside the application. Authenticate the inquiry API in a new tab, then return here and refresh.'; } else { this.error=e instanceof Error?e.message:'An unexpected error occurred.'; } }
-   finally {this.loading=false;}
+     if(this.selected?.id!==previous) { if(this.selected)this.selectInquiry(this.selected); }
+   } catch(e) { if(sequence!==this.loadSequence)return; if(e instanceof TypeError) { this.needsLogin=true; this.error='The secure login was redirected outside the application. Authenticate the inquiry API in a new tab, then return here and refresh.'; } else { this.error=e instanceof Error?e.message:'An unexpected error occurred.'; } }
+   finally {if(sequence===this.loadSequence)this.loading=false;}
  }
 }

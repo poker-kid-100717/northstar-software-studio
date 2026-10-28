@@ -114,6 +114,8 @@ export class ConsultationComponent implements OnInit, OnDestroy {
     return 'Your request could not be submitted. Your answers are still here. Please try again.';
   }
 
+  private submissionKey = crypto.randomUUID();
+  private submissionPayload = '';
   async submit(): Promise<void> {
     if (this.submitting) return;
     if (this.contactName.trim().length < 1 || this.projectDescription.trim().length < 30 || !this.turnstileToken || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.contactEmail.trim())) {
@@ -121,12 +123,15 @@ export class ConsultationComponent implements OnInit, OnDestroy {
       this.message = 'Please check your name, email, description, and spam verification before sending.';
       return;
     }
+    const payload = { name:this.contactName,email:this.contactEmail,projectType:this.projectType,description:this.projectDescription,budget:this.budget,timeline:this.timeline,selectedService:this.selectedService,website:this.website };
+    const fingerprint=JSON.stringify(payload);
+    if(this.submissionPayload && this.submissionPayload!==fingerprint)this.submissionKey=crypto.randomUUID();
+    this.submissionPayload=fingerprint;
     this.submitting = true; this.message = ''; this.error = false;
     try {
       const response = await fetch('/api/consultation-inquiries', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: this.contactName, email: this.contactEmail, projectType: this.projectType,
-          description: this.selectedService ? "Requested service: " + this.selectedService + "\n" + this.projectDescription : this.projectDescription, budget: this.budget, timeline: this.timeline, website: this.website, turnstileToken: this.turnstileToken })
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key':this.submissionKey },
+        body: JSON.stringify({...payload,turnstileToken:this.turnstileToken})
       });
       if (!response.ok) {
         const code = await response.json().then((body: { error?: string }) => body.error).catch(() => '');
