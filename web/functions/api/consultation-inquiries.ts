@@ -37,6 +37,7 @@ export const onRequestPost: PagesFunction<Env> = async ({request, env}) => {
   if (!token || token.length > 2048) return fail('VERIFICATION_REQUIRED',400);
   try {
     const form = new FormData(); form.set('secret',env.TURNSTILE_SECRET_KEY); form.set('response',token); form.set('remoteip',ip);
+    form.set('idempotency_key',key);
     const response = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify',{method:'POST',body:form,signal:AbortSignal.timeout(8000)});
     if (!response.ok) return fail('VERIFICATION_UNAVAILABLE',503);
     const result = await response.json() as {success?:boolean;hostname?:string};

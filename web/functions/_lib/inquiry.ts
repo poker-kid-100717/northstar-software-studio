@@ -58,7 +58,7 @@ export async function deliver(env: Env, id: string): Promise<'sent' | 'pending'>
         method: 'POST', signal: AbortSignal.timeout(10000),
         headers: { Authorization: 'Bearer ' + env.RESEND_API_KEY, 'Content-Type': 'application/json', 'Idempotency-Key': 'inquiry/' + id },
         body: JSON.stringify({ from: env.CONSULTATION_FROM_EMAIL, to: [recipient], reply_to: row['contact_email'], subject: 'Northstar consultation inquiry',
-          text: ['Reference: ' + id, 'Name: ' + row['contact_name'], 'Email: ' + row['contact_email'], 'Project: ' + row['project_type'], 'Budget: ' + row['budget'], 'Timeline: ' + row['timeline'], '', row['description']].join('\n') })
+          text: ['Reference: ' + id, 'Name: ' + row['contact_name'], 'Email: ' + row['contact_email'], 'Project: ' + row['project_type'], 'Selected service: ' + (row['selected_service'] || 'Not specified'), 'Budget: ' + row['budget'], 'Timeline: ' + row['timeline'], '', row['description']].join('\n') })
       });
       sent = response.ok;
     }

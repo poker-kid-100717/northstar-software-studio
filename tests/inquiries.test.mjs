@@ -146,3 +146,57 @@ test('rate limits, bot rejection and actual body bounds prevent writes',async()=
  assert.equal((await intake(crypto.randomUUID(),{...input,description:'x'.repeat(15000)})).status,400);
  assert.equal((await intake(crypto.randomUUID(),{...input,website:'spam.test'})).status,400);
 });
+
+test('single-use Turnstile retry is deduplicated using the inquiry UUID',async()=>{
+ const key=crypto.randomUUID(),seen=new Set(),baseFetch=globalThis.fetch;
+ globalThis.fetch=async(url,init)=>{
+  if(String(url).includes('siteverify')){
+   const token=init.body.get('response'),verificationKey=init.body.get('idempotency_key');
+   assert.equal(verificationKey,key);
+   const composite=token+':'+verificationKey;
+   // A consumed token only replays the original verdict for the same provider key.
+   if(seen.has(token) && !seen.has(composite))return Response.json({success:false});
+   seen.add(token);seen.add(composite);
+   return Response.json({success:true,hostname:'northstar.test'});
+  }
+  return baseFetch(url,init);
+ };
+ const responses=await Promise.all([intake(key),intake(key)]);
+ assert.deepEqual(responses.map(r=>r.status),[200,200]);
+ const bodies=await Promise.all(responses.map(r=>r.json()));assert.equal(bodies[0].reference,bodies[1].reference);
+});
+test('middleware and handler share one owner verification per request',async()=>{
+ seed();let certificates=0;const baseFetch=globalThis.fetch;
+ globalThis.fetch=async(url,init)=>{if(String(url).includes('/certs'))certificates++;return baseFetch(url,init);};
+ const ctx=context('GET','/api/admin/inquiries',undefined,await jwt());
+ const response=await h.middleware.onRequest({...ctx,next:()=>h.list.onRequestGet(ctx)});
+ assert.equal(response.status,200);assert.equal(certificates,1);
+ const second=context('GET','/api/admin/inquiries',undefined,await jwt());
+ assert.equal((await h.list.onRequestGet(second)).status,200);assert.equal(certificates,2);
+});
+test('status actor cannot leak from prior owner updates into direct database writes',async()=>{
+ seed();const token=await jwt();
+ await h.detail.onRequestDelete(context('DELETE','/api/admin/inquiries/'+id,{confirmReference:id},token));
+ assert.equal(db.db.prepare('SELECT updated_by FROM consultation_inquiries').get().updated_by,'system');
+ await h.detail.onRequestPatch(context('PATCH','/api/admin/inquiries/'+id,{read:true},token));
+ await h.status.onRequestPatch(context('PATCH','/api/admin/inquiries/'+id+'/status',{status:'reviewing'},token));
+ assert.equal(db.db.prepare('SELECT actor FROM inquiry_activity WHERE kind=?').get('status').actor,env.CF_ACCESS_ADMIN_EMAIL);
+ assert.equal(db.db.prepare('SELECT updated_by FROM consultation_inquiries').get().updated_by,'system');
+ db.db.prepare("UPDATE consultation_inquiries SET status='contacted' WHERE id=?").run(id);
+ assert.equal(db.db.prepare("SELECT actor FROM inquiry_activity WHERE new_status='contacted'").get().actor,'system');
+ // No-op updates must also consume attribution.
+ await h.detail.onRequestPatch(context('PATCH','/api/admin/inquiries/'+id,{followUpAt:null},token));
+ db.db.prepare("UPDATE consultation_inquiries SET status='qualified' WHERE id=?").run(id);
+ assert.equal(db.db.prepare("SELECT actor FROM inquiry_activity WHERE new_status='qualified'").get().actor,'system');
+});
+test('description and selected service remain searchable across all stored records',async()=>{
+ await intake();const token=await jwt();
+ for(const q of ['application project','Automation']) {
+  const response=await h.list.onRequestGet(context('GET','/api/admin/inquiries?q='+encodeURIComponent(q),undefined,token));
+  assert.equal((await response.json()).total,1);
+ }
+});
+test('notification includes the separately stored catalog service',async()=>{
+ providerStatus=200;await intake();
+ assert.match(JSON.parse(notifications[0].body).text,/Selected service: Automation/);
+});
