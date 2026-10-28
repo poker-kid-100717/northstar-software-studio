@@ -1,0 +1,48 @@
+name: Production acceptance (read-only)
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ['Deploy storefront to Cloudflare Pages']
+    types: [completed]
+permissions:
+  contents: read
+concurrency:
+  group: northstar-production-acceptance
+  cancel-in-progress: false
+jobs:
+  smoke:
+    name: Playwright production smoke (read-only)
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run read-only production smoke
+        env:
+          NORTHSTAR_ACCEPTANCE_URL: ${{ vars.NORTHSTAR_ACCEPTANCE_URL }}
+        run: npx playwright test --config playwright.acceptance.config.ts
+      - name: Upload test report and failure traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-acceptance-report
+          path: |
+            web/acceptance-report/
+            web/acceptance-results.xml
+            web/test-results/
+          retention-days: 14
+          if-no-files-found: warn
