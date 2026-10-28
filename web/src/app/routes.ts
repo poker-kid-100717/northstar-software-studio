@@ -1,3 +1,4 @@
+import { CustomerQuoteComponent } from './customer-quote.component';
 import { AdminInquiriesComponent } from './admin-inquiries.component';
 import { Routes } from '@angular/router';
 import { CheckoutResultComponent } from './checkout-result.component';
@@ -6,4 +7,4 @@ import { HomeComponent } from './home.component';
 import { CatalogComponent } from './catalog.component';
 import { ProductDetailComponent } from './product-detail.component';
 import { ConsultationComponent } from './consultation.component';
-export const routes:Routes=[{path:'',component:HomeComponent},{path:'instant-fixes',component:CatalogComponent},{path:'instant-fixes/:slug',component:ProductDetailComponent},{path:'instant-fixes/:slug/intake',component:IntakeComponent},{path:'consultation',component:ConsultationComponent},{path:'admin',component:AdminInquiriesComponent},{path:'admin/',redirectTo:'admin',pathMatch:'full'},{path:'checkout/success',component:CheckoutResultComponent,data:{success:true}},{path:'checkout/cancel',component:CheckoutResultComponent,data:{success:false}},{path:'**',redirectTo:''}];
+export const routes:Routes=[{path:'',component:HomeComponent},{path:'instant-fixes',component:CatalogComponent},{path:'instant-fixes/:slug',component:ProductDetailComponent},{path:'instant-fixes/:slug/intake',component:IntakeComponent},{path:'consultation',component:ConsultationComponent},{path:'quote/:token',component:CustomerQuoteComponent},{path:'admin',component:AdminInquiriesComponent},{path:'admin/',redirectTo:'admin',pathMatch:'full'},{path:'checkout/success',component:CheckoutResultComponent,data:{success:true}},{path:'checkout/cancel',component:CheckoutResultComponent,data:{success:false}},{path:'**',redirectTo:''}];
