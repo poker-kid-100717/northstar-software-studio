@@ -45,7 +45,7 @@ export const onRequestPost:PagesFunction<Env>=async({request,env,params})=>{
    const results=await db.batch([
      db.prepare("UPDATE service_quotes SET status='accepted',accepted_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),version=version+1,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=? AND status='sent' AND version=? AND expires_at>strftime('%Y-%m-%dT%H:%M:%fZ','now')").bind(q.id,q.version),
      db.prepare("INSERT INTO service_orders(id,quote_id,consult,currency,amount_cents) SELECT ?,?,1,?,? WHERE changes()=1").bind(orderId,q.id,q.currency,q.amount_cents),
-     db.prepare("INSERT INTO commerce_events(id,entity_type,entity_id,event_type,old_status,new_status,actor,details_json) SELECT ?,'quote',?,'accepted','sent','accepted','customer',? WHERE changes()=1").bind(eventId,q.id,JSON.stringify({acceptedVersion:q.version,termsAccepted:true}))
+     db.prepare("INSERT INTO commerce_events(id,entity_type,entity_id,event_type,old_status,new_status,actor,details_json) SELECT ?,'quote',?,'accepted','sent','accepted','customer',? WHERE EXISTS (SELECT 1 FROM service_orders WHERE id=?)").bind(eventId,q.id,JSON.stringify({acceptedVersion:q.version,termsAccepted:true}),orderId)
    ]);
    if(results[0]?.meta?.changes!==1)return reply({error:'QUOTE_CONFLICT'},409);
    return reply({ok:true,status:'accepted',paymentStatus:'not_collected'});
