@@ -31,7 +31,7 @@ export const onRequestDelete: PagesFunction<Env> = async ({request,env,params}) 
   try {
     // Atomic conditional deletion. Financial records are never cascaded away.
     const results = await db.batch([
-      db.prepare('UPDATE consultation_inquiries SET updated_by = ? WHERE id = ?').bind(env.CF_ACCESS_ADMIN_EMAIL!,id),
+      db.prepare("UPDATE consultation_inquiries SET updated_by = ? WHERE id = ? AND status = 'archived' AND NOT EXISTS (SELECT 1 FROM service_quotes WHERE inquiry_id = ?)").bind(env.CF_ACCESS_ADMIN_EMAIL!,id,id),
       db.prepare("DELETE FROM consultation_inquiries WHERE id = ? AND status = 'archived' AND NOT EXISTS (SELECT 1 FROM service_quotes WHERE inquiry_id = ?)").bind(id,id)
     ]);
     if (results.some(r=>!r.success)) throw new Error('DELETE_FAILED');

@@ -58,7 +58,7 @@ test('live validator only sends fixed schema metadata SELECT and accepts ready s
    assert.equal(JSON.parse(init.body).sql,schemaSQL);assert.ok(!schemaSQL.includes('consultation_inquiries'));
    return Response.json({success:true,result:[{success:true,results:schemaRows(db)}]});
   });
-  assert.equal(calls,1);assert.equal(result.migrations,5);
+  assert.equal(calls,1);assert.equal(result.migrations,migrations.length);
  }finally{db.close();}
 });
 test('live validator fails closed on missing configuration, API denial and schema drift',async()=>{

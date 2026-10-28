@@ -6,7 +6,15 @@ function decode64(input: string): Uint8Array<ArrayBuffer> {
   const bytes = atob(b64.padEnd(Math.ceil(b64.length / 4) * 4, '='));
   return Uint8Array.from(bytes, c => c.charCodeAt(0));
 }
-export async function authorize(request: Request, env: Env): Promise<Response | null> {
+const requestAuthorizations = new WeakMap<Request, { env: Env; result: Promise<Response | null> }>();
+export function authorize(request: Request, env: Env): Promise<Response | null> {
+  const cached = requestAuthorizations.get(request);
+  if (cached?.env === env) return cached.result;
+  const result = authorizeUncached(request,env);
+  requestAuthorizations.set(request,{env,result});
+  return result;
+}
+async function authorizeUncached(request: Request, env: Env): Promise<Response | null> {
   if (!env.CF_ACCESS_TEAM_DOMAIN || !env.CF_ACCESS_AUD || !env.CF_ACCESS_ADMIN_EMAIL || !env.INQUIRIES_DB) return deny(503);
   const token = request.headers.get('Cf-Access-Jwt-Assertion');
   if (!token) return deny(401);
@@ -49,7 +57,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   if (!Object.hasOwn(sorts,sort)) return Response.json({error:'INVALID_SORT'},{status:400,headers});
   const offset = Math.min(100000,Math.max(0,Number.parseInt(url.searchParams.get('offset') ?? '0',10)||0));
   try {
-    const where = ' WHERE (? = ? OR status = ?) AND (? = ? OR instr(lower(contact_name || char(10) || contact_email || char(10) || project_type || char(10) || id),lower(?)) > 0)';
+    const where = ' WHERE (? = ? OR status = ?) AND (? = ? OR instr(lower(contact_name || char(10) || contact_email || char(10) || project_type || char(10) || description || char(10) || selected_service || char(10) || id),lower(?)) > 0)';
     const args = [status,'all',status,q,'',q];
     const fields = 'id,created_at,updated_at,contact_name,contact_email,project_type,description,budget,timeline,status,notification_status,notification_attempts,last_notification_error,selected_service,source,read_at,follow_up_at';
     const result = await env.INQUIRIES_DB!.prepare('SELECT '+fields+', (SELECT count(*) FROM consultation_inquiries d WHERE lower(d.contact_email) = lower(consultation_inquiries.contact_email) AND d.id <> consultation_inquiries.id) AS duplicate_count FROM consultation_inquiries'+where+' ORDER BY '+sorts[sort]+' LIMIT ? OFFSET ?').bind(...args,limit,offset).all();

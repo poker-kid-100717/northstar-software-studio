@@ -36,6 +36,7 @@ export class D1 {
 export const handlers = {
  intake: await import('../web/functions/api/consultation-inquiries.ts'),
  list: await import('../web/functions/api/admin/inquiries.ts'),
+ middleware: await import('../web/functions/api/admin/_middleware.ts'),
  status: await import('../web/functions/api/admin/inquiries/[id]/status.ts'),
  activity: await import('../web/functions/api/admin/inquiries/[id]/activity.ts'),
  detail: await import('../web/functions/api/admin/inquiries/[id].ts'),
