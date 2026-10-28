@@ -13,6 +13,30 @@ jobs:
         working-directory: web
     steps:
       - uses: actions/checkout@v4
+      - name: Preflight isolated staging credentials
+        env:
+          NORTHSTAR_STAGING_URL: ${{ vars.NORTHSTAR_STAGING_URL }}
+          STAGING_CF_ACCESS_JWT: ${{ secrets.STAGING_CF_ACCESS_JWT }}
+          STAGING_TURNSTILE_TEST_TOKEN: ${{ secrets.STAGING_TURNSTILE_TEST_TOKEN }}
+          STAGING_QUOTE_TOKEN: ${{ secrets.STAGING_QUOTE_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in NORTHSTAR_STAGING_URL STAGING_CF_ACCESS_JWT STAGING_TURNSTILE_TEST_TOKEN STAGING_QUOTE_TOKEN; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error title=Missing staging configuration::Required protected environment value $name is missing"
+              exit 1
+            fi
+          done
+          if [[ ! "$NORTHSTAR_STAGING_URL" =~ ^https://[a-zA-Z0-9.-]+$ ]] || [[ ! "$NORTHSTAR_STAGING_URL" =~ (staging|preview) ]] || [[ "$NORTHSTAR_STAGING_URL" == *northstar-software-studio.pages.dev* ]]; then
+            echo "::error::Refusing origin that is not a dedicated staging/preview HTTPS hostname"
+            exit 1
+          fi
+          if [[ ! "$STAGING_QUOTE_TOKEN" =~ ^[a-fA-F0-9]{64}$ ]]; then
+            echo "::error::STAGING_QUOTE_TOKEN must be a 64-character hexadecimal staging token"
+            exit 1
+          fi
+          echo "Staging origin and required protected values present; values not printed."
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
