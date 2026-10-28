@@ -1,0 +1,10 @@
+.consultation-page .eyebrow{color:#315fa7}
+.consultation-page .fineprint,.consultation-page .consultation-count span{color:#4d5e75}
+.consultation-page .field-error{color:#a61d14;font-size:14px;font-weight:600;line-height:1.5;margin:4px 0 12px}
+.consultation-page .field-error:empty{margin:0}
+.consultation-page input,.consultation-page textarea,.consultation-page select{border-color:#687b94;min-height:44px}
+.consultation-page [aria-invalid="true"]{border:2px solid #a61d14}
+.consultation-page :is(input,textarea,select,button,a):focus-visible,.consultation-page [tabindex="-1"]:focus{outline:3px solid #184ca5;outline-offset:3px}
+.consultation-page .button{min-height:44px}
+.consultation-page .button.primary{background:#205cc2;border-color:#205cc2}
+.consultation-page .consultation-reference{overflow-wrap:anywhere}
