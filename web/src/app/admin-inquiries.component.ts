@@ -10,6 +10,10 @@ interface Inquiry { id:string; created_at:string; contact_name:string; contact_e
    <p class="eyebrow">NORTHSTAR / PRIVATE WORKSPACE</p>
    <h1>Inquiry management</h1>
    <p class="lead">Review new opportunities, understand what customers need, and keep every conversation organized.</p>
+   <div class="ns-admin-toolbar" aria-label="Admin session">
+     @if (authenticated) { <p class="muted" role="status">Signed in · Role: Admin (owner)</p> }
+     <a class="button secondary" href="/cdn-cgi/access/logout">Sign out</a>
+   </div>
    <div class="ns-admin-toolbar">
      <label>Search inquiries <input [(ngModel)]="search" placeholder="Name, email, project, or reference" aria-label="Search inquiries"></label>
      <label>Status <select [(ngModel)]="status" (ngModelChange)="load()">
@@ -78,7 +82,7 @@ interface Inquiry { id:string; created_at:string; contact_name:string; contact_e
  </section>`
 })
 export class AdminInquiriesComponent implements OnInit {
- inquiries:Inquiry[]=[]; selected:Inquiry|null=null; loading=false; error=''; needsLogin=false; search=''; status='all'; limit=50; savingStatus=false; statusError=''; statusSaved=false; activity:Activity[]=[]; activityLoading=false; activityError=''; noteDraft=''; savingNote=false;
+ inquiries:Inquiry[]=[]; selected:Inquiry|null=null; authenticated=false; loading=false; error=''; needsLogin=false; search=''; status='all'; limit=50; savingStatus=false; statusError=''; statusSaved=false; activity:Activity[]=[]; activityLoading=false; activityError=''; noteDraft=''; savingNote=false;
  readonly statuses=['new','reviewing','contacted','qualified','quoted','won','lost','archived'];
  get filtered():Inquiry[] { const q=this.search.trim().toLowerCase(); return this.inquiries.filter(i=>!q || [i.contact_name,i.contact_email,i.project_type,i.description,i.id].some(x=>x.toLowerCase().includes(q))); }
  encodeSubject(id:string):string { return encodeURIComponent('Northstar inquiry '+id); }
@@ -123,13 +127,14 @@ export class AdminInquiriesComponent implements OnInit {
  }
  ngOnInit():void { void this.load(); }
  async load():Promise<void> {
-   this.loading=true;this.error='';this.needsLogin=false;this.statusError='';this.statusSaved=false;
+   this.loading=true;this.error='';this.needsLogin=false;this.authenticated=false;this.statusError='';this.statusSaved=false;
    try {
      const response=await fetch('/api/admin/inquiries?status='+encodeURIComponent(this.status)+'&limit='+this.limit,{cache:'no-store',credentials:'same-origin'});
      if(response.redirected || response.url.includes('/cdn-cgi/access/login') || response.status===401 || response.status===403) { this.needsLogin=true; throw new Error('Your Cloudflare Access session needs to be established or renewed. Use the secure sign-in link above.'); }
      if(!response.ok) throw new Error(response.status===401||response.status===403?'Your admin session is not authorized. Sign in through Cloudflare Access and try again.':response.status===503?'The admin API is not fully configured yet. Check Cloudflare Access settings and D1 binding.':'The server returned HTTP '+response.status+'.');
      const data=await response.json() as {inquiries?:Inquiry[]};
      this.inquiries=data.inquiries??[];
+     this.authenticated=true;
      const previous=this.selected?.id;
      this.selected=this.inquiries.find(i=>i.id===previous)??this.inquiries[0]??null;
      if(this.selected?.id!==previous) { this.noteDraft='';void this.loadActivity(); }
