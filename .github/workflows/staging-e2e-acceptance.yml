@@ -1,5 +1,8 @@
 name: Staging end-to-end acceptance
 on:
+  workflow_run:
+    workflows: ['Deploy Northstar staging Preview']
+    types: [completed]
   workflow_dispatch:
     inputs:
       complete_test_payment:
@@ -20,6 +23,18 @@ concurrency:
   cancel-in-progress: false
 jobs:
   staging:
+    name: ${{ matrix.mode == 'business' && 'Business + checkout acceptance' || 'Stripe TEST payment + webhook' }}
+    if: >-
+      github.repository == 'poker-kid-100717/northstar-software-studio' &&
+      ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.head_repository.full_name == github.repository))
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        mode: [business, payment]
     runs-on: ubuntu-latest
     environment: northstar-staging
     timeout-minutes: 20
@@ -28,6 +43,9 @@ jobs:
         working-directory: web
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
       - name: Preflight isolated staging credentials
         env:
           NORTHSTAR_STAGING_URL: ${{ vars.NORTHSTAR_STAGING_URL }}
@@ -60,18 +78,20 @@ jobs:
           STAGING_TURNSTILE_TEST_TOKEN: ${{ secrets.STAGING_TURNSTILE_TEST_TOKEN }}
         run: npx playwright test --config playwright.staging.config.ts --list
       - run: npx playwright install --with-deps chromium
-      - name: Staging business acceptance
+        if: matrix.mode == 'business' || github.event_name == 'workflow_run' || inputs.complete_test_payment
+      - name: Staging business acceptance (${{ matrix.mode }})
+        if: matrix.mode == 'business' || github.event_name == 'workflow_run' || inputs.complete_test_payment
         env:
           NORTHSTAR_STAGING_URL: ${{ vars.NORTHSTAR_STAGING_URL }}
           STAGING_CF_ACCESS_JWT: ${{ secrets.STAGING_CF_ACCESS_JWT }}
           STAGING_TURNSTILE_TEST_TOKEN: ${{ secrets.STAGING_TURNSTILE_TEST_TOKEN }}
-          STAGING_REQUIRE_STRIPE_CHECKOUT: ${{ inputs.require_stripe_checkout || inputs.complete_test_payment }}
-          STAGING_COMPLETE_TEST_PAYMENT: ${{ inputs.complete_test_payment }}
+          STAGING_REQUIRE_STRIPE_CHECKOUT: ${{ matrix.mode == 'payment' || github.event_name == 'workflow_run' || inputs.require_stripe_checkout || inputs.complete_test_payment }}
+          STAGING_COMPLETE_TEST_PAYMENT: ${{ matrix.mode == 'payment' }}
         run: npx playwright test --config playwright.staging.config.ts
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: always() && (matrix.mode == 'business' || github.event_name == 'workflow_run' || inputs.complete_test_payment)
         with:
-          name: northstar-staging-e2e-report
+          name: northstar-staging-${{ matrix.mode }}-report
           path: |
             web/staging-report/
             web/staging-results.xml

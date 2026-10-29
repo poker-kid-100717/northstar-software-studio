@@ -96,6 +96,12 @@ jobs:
           node-version: '24'
       - name: Install dependencies
         run: npm install --no-audit --no-fund
+      - name: Parse and discover staging Playwright tests (no staging secrets)
+        env:
+          NORTHSTAR_STAGING_URL: https://staging.northstar-software-studio.pages.dev
+          STAGING_CF_ACCESS_JWT: ci-discovery-placeholder
+          STAGING_TURNSTILE_TEST_TOKEN: ci-discovery-placeholder
+        run: npx playwright test --config playwright.staging.config.ts --list
       - name: Catalog parity check
         run: cd .. && node scripts/check-catalog-parity.mjs
       - name: Pages Functions type check
