@@ -1,0 +1,38 @@
+name: Diagnose staging Stripe webhook (read-only)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  webhook-probe:
+    if: github.repository == 'poker-kid-100717/northstar-software-studio' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: northstar-staging
+    timeout-minutes: 5
+    steps:
+      - name: Probe staging Stripe webhook with intentionally invalid signature
+        shell: bash
+        env:
+          STAGING_URL: ${{ vars.NORTHSTAR_STAGING_URL }}
+        run: |
+          set -euo pipefail
+          if [[ "$STAGING_URL" != 'https://staging.northstar-software-studio.pages.dev' ]]; then
+            echo '::error::Refusing to probe non-staging host.'
+            exit 1
+          fi
+          # This request is deliberately invalid and must never write to D1.
+          # A configured webhook handler replies 400 for its invalid Stripe signature.
+          code=$(curl --silent --show-error --max-time 15 --output /dev/null \
+            --write-out '%{http_code}' --request POST \
+            --header 'Content-Type: application/json' \
+            --header 'Stripe-Signature: t=1,v1=invalid' \
+            --data '{"id":"evt_invalid_staging_probe"}' \
+            "$STAGING_URL/api/stripe/webhook")
+          echo "Staging webhook invalid-signature response: HTTP $code"
+          case "$code" in
+            400) echo 'PASS: Staging webhook is reachable, configured, and rejects invalid signatures.' ;;
+            503) echo '::error::Webhook route reached but staging runtime lacks STRIPE_WEBHOOK_SECRET, staging D1 binding or STRIPE_CHECKOUT_TEST_ENABLED=true.'; exit 1 ;;
+            301|302|303|307|308|401|403) echo '::error::Cloudflare Access or another protection is intercepting the Stripe webhook endpoint. Stripe cannot send a Cloudflare Access JWT.'; exit 1 ;;
+            404|405) echo '::error::Staging webhook function route is not deployed or method routing is incorrect.'; exit 1 ;;
+            *) echo "::error::Unexpected webhook response status $code."; exit 1 ;;
+          esac
