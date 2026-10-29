@@ -21,7 +21,7 @@ export const onRequestPost: PagesFunction<Env> = async ({request,env}) => {
  try{data=await readJson(request,2048);}catch{return respond({error:'INVALID_BODY'},400);}
  const {entryDate,category,costCents,minutes,note}=data;
  const cost=costCents??0,mins=minutes??0,description=note??'';
- if(typeof entryDate!=='string'||!/^(20\d{2})-(\d{2})-(\d{2})$/.test(entryDate)||new Date(entryDate+'T00:00:00Z').toISOString().slice(0,10)!==entryDate||
+ if(typeof entryDate!=='string'||!/^(20\d{2})-(\d{2})-(\d{2})$/.test(entryDate)||!Number.isFinite(Date.parse(entryDate+'T00:00:00Z'))||new Date(entryDate+'T00:00:00Z').toISOString().slice(0,10)!==entryDate||
     entryDate>new Date().toISOString().slice(0,10)||typeof category!=='string'||!categories.includes(category)||
     !Number.isSafeInteger(cost)||Number(cost)<0||Number(cost)>100000000||!Number.isSafeInteger(mins)||Number(mins)<0||Number(mins)>1440||
     (Number(cost)===0&&Number(mins)===0)||typeof description!=='string'||description.length>160)return respond({error:'INVALID_ENTRY'},400);
