@@ -5,7 +5,7 @@ const assertion=process.env.STAGING_CF_ACCESS_JWT;
 const turnstile=process.env.STAGING_TURNSTILE_TEST_TOKEN;
 const required=[['STAGING_CF_ACCESS_JWT',assertion],['STAGING_TURNSTILE_TEST_TOKEN',turnstile]];
 for(const [key,val] of required)if(!val)throw new Error('Missing '+key+'; staging E2E must not silently skip business assertions.');
-test('staging full business path with synthetic inquiry, owner read, notification state and seeded quote acceptance',async({request})=>{
+test('staging full business path with synthetic inquiry, owner read, notification state and seeded quote acceptance',async({request,page})=>{
  const key=randomUUID();
  const name='Northstar E2E '+key.slice(0,8);
  const email='northstar-e2e-'+key+'@example.test';
@@ -90,4 +90,23 @@ test('staging full business path with synthetic inquiry, owner read, notificatio
  // Checkout cannot be started twice for this order.
  const again=await request.post('/api/checkout/session',{headers:{Origin:origin,'Content-Type':'application/json'},data:{token:quoteToken}});
  expect(again.status(),'duplicate checkout blocked').toBe(409);
+
+ if(process.env.STAGING_COMPLETE_TEST_PAYMENT==='true'){
+  // Test-only hosted checkout. Never submit a real payment credential.
+  await page.goto(checkoutBody.checkoutUrl!,{waitUntil:'domcontentloaded'});
+  await page.getByPlaceholder(/1234 1234 1234 1234|Card number/i).fill('4242424242424242');
+  await page.getByPlaceholder(/MM.*YY|Expiry/i).fill('1230');
+  await page.getByPlaceholder(/CVC|Security code/i).fill('123');
+  const emailField=page.getByLabel(/email/i);
+  if(await emailField.count())await emailField.first().fill('northstar-e2e@example.test');
+  await page.getByRole('button',{name:/Pay|Complete payment/i}).click();
+  await expect(page).toHaveURL(/checkout\/success/,{timeout:60000});
+  await expect.poll(async()=>{
+   const result=await request.get('/api/stripe/reconciliation?orderId='+checkoutBody.orderId,{headers:{'Cf-Access-Jwt-Assertion':assertion!},maxRedirects:0});
+   if(result.status()!==200)return 'NOT_READY';
+   const data=await result.json();
+   return data.results?.[0]?.orderId===checkoutBody.orderId && data.results[0].localStatus==='paid' ? data.results[0].finding:'NOT_READY';
+  },{message:'Signed webhook must mark this exact Stripe TEST order paid and reconcile',timeout:60000,intervals:[1000,2000,4000]}).toBe('MATCH');
+ }
+
 });
