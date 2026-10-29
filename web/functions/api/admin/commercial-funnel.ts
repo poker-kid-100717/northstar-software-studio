@@ -25,6 +25,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     const sources = await db.prepare(
       "SELECT source, count(*) AS inquiries FROM consultation_inquiries WHERE created_at >= ? GROUP BY source"
     ).bind(since).all<{ source: string; inquiries: number }>();
+    // Inquiry-created cohort: paid orders are linked through quote -> inquiry.
+    // This avoids comparing payments for old inquiries with new inquiry counts.
+    const sourceConversions = await db.prepare(
+      "SELECT i.source AS source, count(DISTINCT i.id) AS inquiries, count(DISTINCT CASE WHEN o.status IN ('paid','in_progress','delivered','revision','completed') THEN i.id END) AS paying_inquiries, coalesce(sum(CASE WHEN o.status IN ('paid','in_progress','delivered','revision','completed') THEN o.amount_cents ELSE 0 END),0) AS booked_cents FROM consultation_inquiries i LEFT JOIN service_quotes q ON q.inquiry_id=i.id LEFT JOIN service_orders o ON o.quote_id=q.id WHERE i.created_at >= ? GROUP BY i.source"
+    ).bind(since).all<{source:string;inquiries:number;paying_inquiries:number;booked_cents:number}>();
     const quotes = await db.prepare(
       "SELECT status, count(*) AS total FROM service_quotes WHERE created_at >= ? GROUP BY status"
     ).bind(since).all<{ status: string; total: number }>();
@@ -44,10 +49,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     return Response.json({
       windowDays: days, generatedAt: new Date().toISOString(),
       inquiries: { total: totalInquiries, byStatus: inquiryCounts, bySource: sources.results.map(r=>({source:r.source,inquiries:r.inquiries})) },
+      sourceCohorts: sourceConversions.results.map(r=>({ source:r.source, inquiries:r.inquiries, payingInquiries:r.paying_inquiries, bookedAmountCents:r.booked_cents, inquiryToPaidRate:r.inquiries>0?r.paying_inquiries/r.inquiries:null })),
       quotes: { total: quotes.results.reduce((sum,row)=>sum+row.total,0), accepted: count(quotes.results,['accepted']) },
       orders: { total: orders.results.reduce((sum,row)=>sum+row.total,0), paid: paidOrders, completed: count(orders.results,['completed']), paidAmountCents },
       inquiryToPaidOrderRate: totalInquiries > 0 ? paidOrders / totalInquiries : null,
-      caveats: ['Counts use record creation dates, not event timestamps or cohort attribution.', 'Paid amount is booked order value, not reconciled revenue or profit.', 'Self-reported lead source is not independently verified; no visitor analytics or source-specific paid conversion is included.']
+      caveats: ['Counts use record creation dates, not event timestamps or cohort attribution.', 'Paid amount is booked order value, not reconciled revenue or profit.', 'Source cohorts use inquiry creation dates and currently paid order statuses; refunds and delayed orders can change reported values. Lead source is self-reported, and visitor attribution is not verified.']
     }, { headers });
   } catch {
     return Response.json({ error: 'FUNNEL_UNAVAILABLE' }, { status: 503, headers });
