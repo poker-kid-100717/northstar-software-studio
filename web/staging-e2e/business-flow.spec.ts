@@ -65,4 +65,16 @@ test('staging full business path with synthetic inquiry, owner read, notificatio
  });
  expect(replay.status(),'replayed quote acceptance must conflict').toBe(409);
  expect(await replay.json()).toMatchObject({error:'QUOTE_CONFLICT'});
+ // Test Stripe session creation only; no card entry, charge, or payment-state mutation.
+ const checkout=await request.post('/api/checkout/session',{
+  headers:{Origin:origin,'Content-Type':'application/json'},
+  data:{token:quoteToken}
+ });
+ expect(checkout.status(),'Stripe TEST checkout session creation').toBe(200);
+ const checkoutBody=await checkout.json();
+ expect(checkoutBody).toMatchObject({mode:'test',paymentStatus:'awaiting_payment'});
+ expect(checkoutBody.checkoutUrl).toMatch(/^https:\/\/checkout\.stripe\.com\//);
+ // Checkout cannot be started twice for this order.
+ const again=await request.post('/api/checkout/session',{headers:{Origin:origin,'Content-Type':'application/json'},data:{token:quoteToken}});
+ expect(again.status(),'duplicate checkout blocked').toBe(409);
 });
