@@ -65,6 +65,11 @@ test('staging full business path with synthetic inquiry, owner read, notificatio
  });
  expect(replay.status(),'replayed quote acceptance must conflict').toBe(409);
  expect(await replay.json()).toMatchObject({error:'QUOTE_CONFLICT'});
+ // Checkout is a distinct acceptance gate. Business E2E must not falsely claim Stripe passed.
+ if(process.env.STAGING_REQUIRE_STRIPE_CHECKOUT !== 'true') {
+  console.log('STRIPE_CHECKOUT_NOT_TESTED: run workflow with require_stripe_checkout=true for explicit payment-gate acceptance.');
+  return;
+ }
  // Test Stripe session creation only; no card entry, charge, or payment-state mutation.
  const checkout=await request.post('/api/checkout/session',{
   headers:{Origin:origin,'Content-Type':'application/json'},

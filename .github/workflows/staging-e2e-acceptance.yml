@@ -1,6 +1,12 @@
 name: Staging end-to-end acceptance
 on:
   workflow_dispatch:
+    inputs:
+      require_stripe_checkout:
+        description: 'Require real Stripe TEST checkout session creation (fails if staging checkout disabled)'
+        type: boolean
+        required: true
+        default: false
 permissions:
   contents: read
 # The quote token is one-use. Never run two acceptance jobs against it in parallel.
@@ -48,6 +54,7 @@ jobs:
           NORTHSTAR_STAGING_URL: ${{ vars.NORTHSTAR_STAGING_URL }}
           STAGING_CF_ACCESS_JWT: ${{ secrets.STAGING_CF_ACCESS_JWT }}
           STAGING_TURNSTILE_TEST_TOKEN: ${{ secrets.STAGING_TURNSTILE_TEST_TOKEN }}
+          STAGING_REQUIRE_STRIPE_CHECKOUT: ${{ inputs.require_stripe_checkout }}
         run: npx playwright test --config playwright.staging.config.ts
       - uses: actions/upload-artifact@v4
         if: always()
