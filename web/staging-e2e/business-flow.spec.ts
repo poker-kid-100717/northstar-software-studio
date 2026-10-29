@@ -2,11 +2,9 @@ import {test,expect} from '@playwright/test';
 import {randomUUID} from 'node:crypto';
 const origin=process.env.NORTHSTAR_STAGING_URL!;
 const assertion=process.env.STAGING_CF_ACCESS_JWT;
-const quoteToken=process.env.STAGING_QUOTE_TOKEN;
 const turnstile=process.env.STAGING_TURNSTILE_TEST_TOKEN;
-const required=[['STAGING_CF_ACCESS_JWT',assertion],['STAGING_QUOTE_TOKEN',quoteToken],['STAGING_TURNSTILE_TEST_TOKEN',turnstile]];
+const required=[['STAGING_CF_ACCESS_JWT',assertion],['STAGING_TURNSTILE_TEST_TOKEN',turnstile]];
 for(const [key,val] of required)if(!val)throw new Error('Missing '+key+'; staging E2E must not silently skip business assertions.');
-if (!/^[a-f0-9]{64}$/i.test(quoteToken!))throw new Error('STAGING_QUOTE_TOKEN must be a 64-character hex scoped staging token.');
 test('staging full business path with synthetic inquiry, owner read, notification state and seeded quote acceptance',async({request})=>{
  const key=randomUUID();
  const name='Northstar E2E '+key.slice(0,8);
@@ -29,6 +27,23 @@ test('staging full business path with synthetic inquiry, owner read, notificatio
  const inquiry=listing.inquiries.find((v:{id:string})=>v.id===stored.reference);
  expect(['pending','sent','failed']).toContain(inquiry.notification_status);
  // An accepted response alone does not prove email delivery; this verifies durable notification state.
+ // Seed a dedicated synthetic quote via the same authenticated production-code APIs.
+ // The share token stays in this job's memory and is not logged or stored in GitHub secrets.
+ const adminHeaders={'Cf-Access-Jwt-Assertion':assertion!,Origin:origin,'Content-Type':'application/json'};
+ const created=await request.post('/api/admin/quotes',{headers:adminHeaders,data:{
+  inquiryId:stored.reference,serviceName:'Staging diagnostic',deliverables:'Synthetic automated acceptance only',exclusions:'No real customer work',amountCents:9900
+ }});
+ expect(created.status(),'create staging quote').toBe(201);
+ const createdQuote=await created.json();
+ const quoteId=createdQuote.id as string;
+ const expiresAt=new Date(Date.now()+24*60*60*1000).toISOString();
+ const approved=await request.post('/api/admin/quotes/'+quoteId+'/approve',{headers:adminHeaders,data:{expectedVersion:1,expiresAt}});
+ expect(approved.status(),'approve staging quote').toBe(200);
+ const shared=await request.post('/api/admin/quotes/'+quoteId+'/share',{headers:adminHeaders});
+ expect(shared.status(),'share staging quote').toBe(200);
+ const share=await shared.json();
+ const quoteToken=new URL(share.shareUrl).pathname.split('/').pop();
+ expect(quoteToken).toMatch(/^[a-f0-9]{64}$/i);
  const quote=await request.get('/api/quotes/'+quoteToken,{maxRedirects:0});
  expect(quote.status(),'pre-seeded isolated quote GET').toBe(200);
  const quoteBody=await quote.json();
