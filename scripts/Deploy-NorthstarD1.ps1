@@ -8,6 +8,7 @@ param(
   [string]$DatabaseId = 'ef07d532-76a3-4a7e-bb1f-80fe4f021ec9',
   [string]$Repository = 'poker-kid-100717/northstar-software-studio',
   [switch]$RequireEncryptedBackup,
+  [switch]$BackupOnly,
   [string]$BackupDirectory = (Join-Path $HOME 'NorthstarD1Backups')
 )
 $ErrorActionPreference = 'Stop'
@@ -102,6 +103,7 @@ try {
   } else {
     Write-Host "Backup saved at $backup. Protect this file: it may contain customer information."
   }
+  if ($BackupOnly) { Write-Host 'Verified encrypted backup captured; no migration applied.'; return }
   foreach ($migration in $migrations) {
     $current = State (Snapshot) $migration.Markers
     if ($current -eq 'present') { Write-Host "Skipping $($migration.File), already present"; continue }
