@@ -96,7 +96,7 @@ test('staging full business path with synthetic inquiry, owner read, notificatio
   await page.goto(checkoutBody.checkoutUrl!,{waitUntil:'domcontentloaded'});
   // Hosted Checkout may ask for contact information or payment method selection
   // before mounting its card fields. Never guess that a particular iframe exists.
-  await expect(page).toHaveURL(/^https:\\/\\/checkout\\.stripe\\.com\\//);
+  await expect(page).toHaveURL(url => url.hostname === 'checkout.stripe.com');
   const emailField=page.getByRole('textbox',{name:/email/i}).or(page.getByPlaceholder(/email/i));
   if(await emailField.first().isVisible().catch(()=>false))
    await emailField.first().fill('northstar-e2e@example.test');
