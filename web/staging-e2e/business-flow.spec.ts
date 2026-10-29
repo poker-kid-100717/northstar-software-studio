@@ -5,7 +5,7 @@ const assertion=process.env.STAGING_CF_ACCESS_JWT;
 const turnstile=process.env.STAGING_TURNSTILE_TEST_TOKEN;
 const required=[['STAGING_CF_ACCESS_JWT',assertion],['STAGING_TURNSTILE_TEST_TOKEN',turnstile]];
 for(const [key,val] of required)if(!val)throw new Error('Missing '+key+'; staging E2E must not silently skip business assertions.');
-test('staging full business path with synthetic inquiry, owner read, notification state and seeded quote acceptance',async({request,page})=>{
+test('staging full business path with synthetic inquiry, owner read, notification state and seeded quote acceptance',async({request,page},testInfo)=>{
  const key=randomUUID();
  const name='Northstar E2E '+key.slice(0,8);
  const email='northstar-e2e-'+key+'@example.test';
@@ -94,25 +94,47 @@ test('staging full business path with synthetic inquiry, owner read, notificatio
  if(process.env.STAGING_COMPLETE_TEST_PAYMENT==='true'){
   // Test-only hosted checkout. Never submit a real payment credential.
   await page.goto(checkoutBody.checkoutUrl!,{waitUntil:'domcontentloaded'});
-  // Stripe-hosted Checkout may render payment fields in a Stripe-owned iframe.
-  // Use accessible labels and explicit frame fallback rather than one placeholder.
-  const cardSelectors=[
-   page.getByLabel(/card number/i),
-   page.getByPlaceholder(/1234 1234 1234 1234|card number/i),
-   page.frameLocator('iframe[title*="Secure payment input"]').getByPlaceholder(/1234 1234 1234 1234|card number/i),
-   page.frameLocator('iframe[name^="__privateStripeFrame"]').getByPlaceholder(/1234 1234 1234 1234|card number/i)
+  // Hosted Checkout may ask for contact information or payment method selection
+  // before mounting its card fields. Never guess that a particular iframe exists.
+  await expect(page).toHaveURL(/^https:\\/\\/checkout\\.stripe\\.com\\//);
+  const emailField=page.getByRole('textbox',{name:/email/i}).or(page.getByPlaceholder(/email/i));
+  if(await emailField.first().isVisible().catch(()=>false))
+   await emailField.first().fill('northstar-e2e@example.test');
+  const cardChoice=page.getByRole('radio',{name:/card/i});
+  if(await cardChoice.first().isVisible().catch(()=>false))
+   await cardChoice.first().check();
+
+  const fields=[
+   {name:'card number',pattern:/card number|1234 1234 1234 1234/i,value:'4242424242424242'},
+   {name:'expiry',pattern:/expiration|expiry|mm.*yy/i,value:'1230'},
+   {name:'security code',pattern:/cvc|security code|cvv/i,value:'123'}
   ];
-  let cardFound=false;
-  for(const candidate of cardSelectors){
-   try{await candidate.first().waitFor({state:'visible',timeout:4000});await candidate.first().fill('4242424242424242');cardFound=true;break;}catch{}
+  for(const field of fields){
+   let filled=false;
+   // Search every frame; Stripe can change the nesting and names of secure inputs.
+   for(let attempt=0;attempt<10&&!filled;attempt++){
+    for(const frame of page.frames()){
+     const locator=frame.getByRole('textbox',{name:field.pattern})
+      .or(frame.getByPlaceholder(field.pattern))
+      .or(frame.locator('input[aria-label],input[placeholder]').filter({visible:true}));
+     const inputs=await locator.count().catch(()=>0);
+     for(let i=0;i<Math.min(inputs,12);i++){
+      const input=locator.nth(i);
+      const descriptor=((await input.getAttribute('aria-label').catch(()=>''))||'')+' '+((await input.getAttribute('placeholder').catch(()=>''))||'');
+      if(!field.pattern.test(descriptor))continue;
+      try{await input.fill(field.value,{timeout:1500});filled=true;break;}catch{}
+     }
+     if(filled)break;
+    }
+    if(!filled)await page.waitForTimeout(700);
+   }
+   if(!filled){
+    // Metadata only: never write URLs with session tokens, input values, or secrets.
+    const frames=page.frames().map(f=>({host:(()=>{try{return new URL(f.url()).hostname}catch{return 'unknown'}})()}));
+    await testInfo.attach('stripe-frame-hosts',{body:JSON.stringify(frames),contentType:'application/json'});
+    throw new Error('Stripe hosted '+field.name+' field not visible. Inspect protected Playwright trace/screenshot; hosted Checkout may be showing a different payment method, blocked by bot protection, or changed its markup.');
+   }
   }
-  expect(cardFound,'Stripe-hosted card number field should be visible').toBe(true);
-  const expiry=page.getByLabel(/expiration|expiry/i).or(page.getByPlaceholder(/MM.*YY|expiry/i));
-  const cvc=page.getByLabel(/cvc|security code/i).or(page.getByPlaceholder(/CVC|security code/i));
-  await expiry.first().fill('1230');
-  await cvc.first().fill('123');
-  const emailField=page.getByLabel(/email/i);
-  if(await emailField.count())await emailField.first().fill('northstar-e2e@example.test');
   await page.getByRole('button',{name:/Pay|Complete payment/i}).click();
   await expect(page).toHaveURL(/checkout\/success/,{timeout:60000});
   await expect.poll(async()=>{
