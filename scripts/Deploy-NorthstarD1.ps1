@@ -51,7 +51,8 @@ $migrations = @(
   @{File='0003_commerce_foundation.sql';Markers=@('table:service_quotes','table:service_orders','table:commerce_events','table:payment_webhook_events','index:idx_service_quotes_inquiry','index:idx_service_quotes_status','index:idx_service_orders_status','index:idx_commerce_events_entity')},
   @{File='0004_quote_access.sql';Markers=@('table:quote_access_tokens','index:idx_quote_access_expiry')},
   @{File='0005_inquiry_lifecycle.sql';Markers=@('column:selected_service','column:source','column:idempotency_key','column:request_hash','column:read_at','column:follow_up_at','column:updated_by','column:notification_next_at','column:notification_lease','column:notification_lease_until','index:idx_inquiry_idempotency','index:idx_inquiry_email','table:inquiry_rate_limits','table:inquiry_events','trigger:inquiry_status_audit','trigger:inquiry_followup_audit','trigger:inquiry_delete_audit')},
-  @{File='0006_inquiry_audit_actor.sql';Markers=@('trigger:inquiry_actor_reset')}
+  @{File='0006_inquiry_audit_actor.sql';Markers=@('trigger:inquiry_actor_reset')},
+  @{File='0007_commercial_operating_ledger.sql';Markers=@('table:commercial_operating_entries','index:idx_commercial_operating_entries_date')}
 )
 Push-Location $root
 try {
