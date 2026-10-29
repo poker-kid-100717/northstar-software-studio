@@ -27,10 +27,10 @@ export const onRequestPost:PagesFunction<Env>=async({request,env})=>{
  if(!await verify(body,request.headers.get('Stripe-Signature')||'',env.STRIPE_WEBHOOK_SECRET))return response(400);
  let event:Event;
  try{event=JSON.parse(body) as Event;}catch{return response(400);}
- if(!event.id?.startsWith('evt_')||event.livemode!==false||!event.type)return response(400);
+ if(!event||typeof event!=='object'||Array.isArray(event)||typeof event.id!=='string'||!event.id.startsWith('evt_')||event.livemode!==false||typeof event.type!=='string'||!event.type)return response(400);
  if(!['checkout.session.completed','checkout.session.async_payment_succeeded'].includes(event.type))return response(200);
  const session=event.data?.object;
- if(!session?.id?.startsWith('cs_test_')||session.livemode!==false||session.payment_status!=='paid'||!Number.isSafeInteger(session.amount_total)||session.currency!=='usd'||!session.payment_intent?.startsWith('pi_')||!session.client_reference_id||session.metadata?.order_id!==session.client_reference_id)return response(400);
+ if(typeof session?.id!=='string'||!session.id.startsWith('cs_test_')||session.livemode!==false||session.payment_status!=='paid'||!Number.isSafeInteger(session.amount_total)||session.currency!=='usd'||typeof session.payment_intent!=='string'||!session.payment_intent.startsWith('pi_')||!session.client_reference_id||session.metadata?.order_id!==session.client_reference_id)return response(400);
  try{
   const db=env.INQUIRIES_DB;
   const order=await db.prepare('SELECT id,status,amount_cents,currency,provider_checkout_session_id,provider_payment_intent_id FROM service_orders WHERE id=?').bind(session.client_reference_id).first<Order>();
