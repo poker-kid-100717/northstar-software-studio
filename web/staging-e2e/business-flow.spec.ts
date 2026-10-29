@@ -104,9 +104,12 @@ test('staging full business path with synthetic inquiry, owner read, notificatio
   // accordion's "Pay with card" button is retained in the DOM but hidden.
   // Only click when the card choice is actually visible; otherwise inspect
   // already-mounted payment fields rather than failing on a hidden button.
-  const cardChoice=page.getByRole('button',{name:'Pay with card',exact:true});
-  if(await cardChoice.isVisible().catch(()=>false))
-   await cardChoice.click();
+  // Actual staging screenshot: Card is a visible unselected payment-method row,
+  // while Stripe's internal Pay with card button is hidden.
+  // Click the human-visible label; the selection event bubbles to Stripe's row.
+  const cardLabel=page.getByText('Card',{exact:true});
+  await expect(cardLabel,'Stripe Checkout must render visible Card option').toBeVisible({timeout:15000});
+  await cardLabel.click();
 
   const fields=[
    {name:'card number',pattern:/card number|1234 1234 1234 1234/i,value:'4242424242424242'},
