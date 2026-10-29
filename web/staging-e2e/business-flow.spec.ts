@@ -75,12 +75,18 @@ test('staging full business path with synthetic inquiry, owner read, notificatio
   headers:{Origin:origin,'Content-Type':'application/json'},
   data:{token:quoteToken}
  });
- const checkoutResult=await checkout.json() as {error?:string;checkoutUrl?:string;mode?:string;paymentStatus?:string};
+ const checkoutResult=await checkout.json() as {error?:string;checkoutUrl?:string;orderId?:string;mode?:string;paymentStatus?:string};
  // API error codes are intentionally non-sensitive; do not print tokens, URLs or headers.
  expect(checkout.status(),`Stripe TEST checkout session creation: ${checkoutResult.error ?? 'UNKNOWN_ERROR'}`).toBe(200);
  const checkoutBody=checkoutResult;
  expect(checkoutBody).toMatchObject({mode:'test',paymentStatus:'awaiting_payment'});
  expect(checkoutBody.checkoutUrl).toMatch(/^https:\/\/checkout\.stripe\.com\//);
+ expect(checkoutBody.orderId).toMatch(/^[0-9a-f-]{36}$/i);
+ const exact=await request.get('/api/stripe/reconciliation?orderId='+checkoutBody.orderId,{headers:{'Cf-Access-Jwt-Assertion':assertion!},maxRedirects:0});
+ expect(exact.status(),'owner-only test-order reconciliation').toBe(200);
+ const reconciliation=await exact.json();
+ expect(reconciliation).toMatchObject({mode:'test',checked:1});
+ expect(reconciliation.results[0]).toMatchObject({orderId:checkoutBody.orderId,localStatus:'awaiting_payment',finding:'MATCH'});
  // Checkout cannot be started twice for this order.
  const again=await request.post('/api/checkout/session',{headers:{Origin:origin,'Content-Type':'application/json'},data:{token:quoteToken}});
  expect(again.status(),'duplicate checkout blocked').toBe(409);
