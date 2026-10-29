@@ -10,6 +10,36 @@ jobs:
     environment: northstar-staging
     timeout-minutes: 5
     steps:
+      - name: Inspect Preview webhook setting names without reading secret values
+        shell: bash
+        env:
+          CF_TOKEN: ${{ secrets.STAGING_CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ vars.STAGING_CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$CF_TOKEN" || { echo '::error::Missing protected Cloudflare staging token'; exit 1; }
+          test "$CF_ACCOUNT" = '961daf5c86645f2e06c6c86c6156db39' || { echo '::error::Wrong Cloudflare account'; exit 1; }
+          curl --fail-with-body --silent --show-error --max-time 20 \
+            --header "Authorization: Bearer $CF_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/pages/projects/northstar-software-studio" \
+            --output "$RUNNER_TEMP/pages-project.json"
+          node <<'NODE'
+          const fs=require('node:fs');
+          const response=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/pages-project.json','utf8'));
+          const project=response.result;
+          if(response.success!==true || !project)throw Error('Cloudflare read failed');
+          const preview=project.deployment_configs?.preview;
+          const production=project.deployment_configs?.production;
+          const stagingId='042bf88c-090e-43bd-969a-ff0f7d2feebd';
+          if(preview?.d1_databases?.INQUIRIES_DB?.id!==stagingId || !production?.d1_databases?.INQUIRIES_DB?.id || production.d1_databases.INQUIRIES_DB.id===stagingId) {
+            throw Error('D1 isolation failed');
+          }
+          const present=preview?.env_vars?.STRIPE_WEBHOOK_SECRET;
+          const type=present?.type||'MISSING';
+          console.log('Preview STRIPE_WEBHOOK_SECRET: '+(present?'PRESENT':'MISSING')+'; type: '+type+' (value never logged)');
+          console.log('Preview STRIPE_CHECKOUT_TEST_ENABLED: '+(preview?.env_vars?.STRIPE_CHECKOUT_TEST_ENABLED?'PRESENT':'MISSING'));
+          if(!present || type!=='secret_text')throw Error('Preview STRIPE_WEBHOOK_SECRET is not configured as an encrypted Pages secret');
+          NODE
       - name: Probe staging Stripe webhook with intentionally invalid signature
         shell: bash
         env:
