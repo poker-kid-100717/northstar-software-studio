@@ -70,8 +70,10 @@ test('staging full business path with synthetic inquiry, owner read, notificatio
   headers:{Origin:origin,'Content-Type':'application/json'},
   data:{token:quoteToken}
  });
- expect(checkout.status(),'Stripe TEST checkout session creation').toBe(200);
- const checkoutBody=await checkout.json();
+ const checkoutResult=await checkout.json() as {error?:string;checkoutUrl?:string;mode?:string;paymentStatus?:string};
+ // API error codes are intentionally non-sensitive; do not print tokens, URLs or headers.
+ expect(checkout.status(),`Stripe TEST checkout session creation: ${checkoutResult.error ?? 'UNKNOWN_ERROR'}`).toBe(200);
+ const checkoutBody=checkoutResult;
  expect(checkoutBody).toMatchObject({mode:'test',paymentStatus:'awaiting_payment'});
  expect(checkoutBody.checkoutUrl).toMatch(/^https:\/\/checkout\.stripe\.com\//);
  // Checkout cannot be started twice for this order.
