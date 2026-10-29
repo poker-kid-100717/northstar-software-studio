@@ -100,16 +100,17 @@ test('staging full business path with synthetic inquiry, owner read, notificatio
   const emailField=page.getByRole('textbox',{name:/email/i}).or(page.getByPlaceholder(/email/i));
   if(await emailField.first().isVisible().catch(()=>false))
    await emailField.first().fill('northstar-e2e@example.test');
-  // Stripe may already have the Card accordion expanded. In that state the
-  // accordion's "Pay with card" button is retained in the DOM but hidden.
-  // Only click when the card choice is actually visible; otherwise inspect
-  // already-mounted payment fields rather than failing on a hidden button.
-  // Actual staging screenshot: Card is a visible unselected payment-method row,
-  // while Stripe's internal Pay with card button is hidden.
-  // Click the human-visible label; the selection event bubbles to Stripe's row.
-  const cardLabel=page.getByText('Card',{exact:true});
-  await expect(cardLabel,'Stripe Checkout must render visible Card option').toBeVisible({timeout:15000});
-  await cardLabel.click();
+  // Run #21 proved Stripe's actual Pay with card button intercepts pointer
+  // events over the visible Card label. Target the button itself, not its label.
+  // Playwright may classify an expanded accordion button as hidden; force is
+  // appropriate only for this verified Stripe-owned TEST checkout control.
+  const cardButton=page.locator('button[data-testid="card-accordion-item-button"][aria-label="Pay with card"]');
+  await expect(cardButton,'Stripe card payment control should exist').toHaveCount(1,{timeout:5000});
+  try {
+   await cardButton.click({force:true,timeout:5000});
+  } catch {
+   throw new Error('Could not activate Stripe TEST Card method within 5s; inspect Checkout trace.');
+  }
 
   const fields=[
    {name:'card number',pattern:/card number|1234 1234 1234 1234/i,value:'4242424242424242'},
