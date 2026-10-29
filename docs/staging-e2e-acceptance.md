@@ -6,9 +6,9 @@ GitHub environment `northstar-staging` requires:
 - variable `NORTHSTAR_STAGING_URL`: HTTPS origin with `staging` or `preview` in the host; **not** the production Pages domain. Exact-origin validation prevents accidental production mutation.
 - secret `STAGING_CF_ACCESS_JWT`: short-lived signed **owner** JWT issued by staging Cloudflare Access (Access service tokens alone do not satisfy the application JWT email restriction).
 - secret `STAGING_TURNSTILE_TEST_TOKEN`: working test Turnstile response appropriate to staging; Cloudflare verification must return matching hostname.
-- secret `STAGING_QUOTE_TOKEN`: 64-character hexadecimal **single-use** acceptance token of a seeded, approved and sent quote on staging D1, with `QUOTE_ACCEPTANCE_ENABLED=true`. Refresh the quote/token before every run since acceptance changes it to accepted.
+- No quote token secret is required: the test creates, approves, and shares a synthetic staging quote with the protected owner JWT and keeps the one-time token in process memory.
 
-Tests create one synthetic inquiry with a unique example.test email, assert real D1 persistence indirectly through the authorized list API, inspect durable notification state, retrieve a separately pre-seeded quote, accept it and verify state. **This does not yet prove a Resend message reached an inbox**; provider delivery confirmation is a separate outstanding integration test. Quote acceptance cannot charge money.
+Tests create one synthetic inquiry with a unique example.test email, assert real D1 persistence indirectly through the authorized list API, inspect durable notification state, create and share a fresh quote through authenticated staging admin APIs, accept it and verify state. **This does not yet prove a Resend message reached an inbox**; provider delivery confirmation is a separate outstanding integration test. Quote acceptance cannot charge money.
 
 Important operational boundaries:
 - Do not point staging at production D1, Resend or real customer data.
