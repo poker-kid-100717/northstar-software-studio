@@ -53,6 +53,10 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci --no-audit --no-fund
+      - name: Verify staging Playwright tests parse and are discovered
+        env:
+          NORTHSTAR_STAGING_URL: ${{ vars.NORTHSTAR_STAGING_URL }}
+        run: npx playwright test --config playwright.staging.config.ts --list
       - run: npx playwright install --with-deps chromium
       - name: Staging business acceptance
         env:
