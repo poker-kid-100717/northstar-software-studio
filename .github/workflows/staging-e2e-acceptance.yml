@@ -56,6 +56,8 @@ jobs:
       - name: Verify staging Playwright tests parse and are discovered
         env:
           NORTHSTAR_STAGING_URL: ${{ vars.NORTHSTAR_STAGING_URL }}
+          STAGING_CF_ACCESS_JWT: ${{ secrets.STAGING_CF_ACCESS_JWT }}
+          STAGING_TURNSTILE_TEST_TOKEN: ${{ secrets.STAGING_TURNSTILE_TEST_TOKEN }}
         run: npx playwright test --config playwright.staging.config.ts --list
       - run: npx playwright install --with-deps chromium
       - name: Staging business acceptance
