@@ -1,0 +1,69 @@
+name: Deploy Northstar staging Preview
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - '.github/workflows/deploy-staging-preview.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: northstar-pages-staging-preview
+  cancel-in-progress: false
+jobs:
+  deploy-staging:
+    if: github.ref == 'refs/heads/main' && github.repository == 'poker-kid-100717/northstar-software-studio'
+    environment: northstar-staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Check Cloudflare scope, Preview D1 isolation, and staging token
+        env:
+          CF_TOKEN: ${{ secrets.STAGING_CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ vars.STAGING_CLOUDFLARE_ACCOUNT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CF_TOKEN" || { echo "::error::Missing northstar-staging environment secret STAGING_CLOUDFLARE_API_TOKEN"; exit 1; }
+          test "$CF_ACCOUNT" = "961daf5c86645f2e06c6c86c6156db39" || { echo "::error::Wrong Cloudflare account"; exit 1; }
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer $CF_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/pages/projects/northstar-software-studio" \
+            -o "$RUNNER_TEMP/pages-project.json"
+          node -e '
+            const fs=require("node:fs");
+            const r=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+"/pages-project.json"));
+            const project=r.result;
+            const preview=project?.deployment_configs?.preview?.d1_databases?.INQUIRIES_DB?.id;
+            const production=project?.deployment_configs?.production?.d1_databases?.INQUIRIES_DB?.id;
+            if(r.success!==true || preview!=="042bf88c-090e-43bd-969a-ff0f7d2feebd" || !production || preview===production)
+              { console.error("::error::Preview D1 isolation verification failed; refusing deployment"); process.exit(1); }
+            console.log("Cloudflare project/account verified; Preview and Production D1 bindings isolated.");
+          '
+      - name: Install dependencies and build Angular
+        working-directory: web
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build -- --configuration production
+          test -s dist/northstar/browser/index.html
+          test -s functions/api/consultation-inquiries.ts
+      - name: Deploy Preview from the latest main commit, without modifying git staging branch
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.STAGING_CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.STAGING_CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: web
+          command: pages deploy dist/northstar/browser --project-name=northstar-software-studio --branch=staging
+      - name: Deployment scope summary
+        run: |
+          echo "Deployed source commit $GITHUB_SHA to Pages Preview branch staging."
+          echo "No Git staging branch synchronization and no production deployment command executed."
