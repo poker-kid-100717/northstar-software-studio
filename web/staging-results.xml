@@ -1,0 +1,8 @@
+<testsuites id="" name="" tests="1" failures="0" skipped="1" errors="0" time="0.11811199999999997">
+<testsuite name="business-flow.spec.ts" timestamp="2026-10-29T22:19:01.352Z" hostname="staging-chromium" tests="1" failures="0" skipped="1" time="0" errors="0">
+<testcase name="staging full business path with synthetic inquiry, owner read, notification state and seeded quote acceptance" classname="business-flow.spec.ts">
+<skipped>
+</skipped>
+</testcase>
+</testsuite>
+</testsuites>
