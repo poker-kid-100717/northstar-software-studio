@@ -63,3 +63,15 @@ test('signed live-mode event rejected in test-only endpoint',async()=>{
  const live=JSON.stringify({...JSON.parse(payload),livemode:true});
  assert.equal((await post(live,await sign(live))).status,400);
 });
+
+test('signed malformed JSON shapes fail closed instead of throwing',async()=>{
+ for(const body of ['null','[]','42','"text"','{}','{"id":42,"livemode":false,"type":"checkout.session.completed"}','{"id":"evt_test","livemode":false,"type":42}']){
+  assert.equal((await post(body,await sign(body))).status,400,body);
+ }
+});
+test('signed malformed session identifiers fail closed',async()=>{
+ for(const obj of [{id:42},{id:'cs_test_123',payment_intent:42}]){
+  const body=JSON.stringify({id:'evt_test',livemode:false,type:'checkout.session.completed',data:{object:{...obj,livemode:false,payment_status:'paid',amount_total:100,currency:'usd',client_reference_id:'ord_1',metadata:{order_id:'ord_1'}}}});
+  assert.equal((await post(body,await sign(body))).status,400);
+ }
+});
