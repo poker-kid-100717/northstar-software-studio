@@ -25,12 +25,12 @@ jobs:
       - name: Dry run and optional Preview-only apply
         shell: pwsh
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STAGING_CLOUDFLARE_API_TOKEN }}
           STAGING_ADMIN_EMAIL: ${{ vars.STAGING_ADMIN_EMAIL }}
           APPLY_PREVIEW: ${{ inputs.apply }}
         run: |
           $ErrorActionPreference = 'Stop'
-          if (-not $env:CLOUDFLARE_API_TOKEN) { throw 'Missing protected environment secret CLOUDFLARE_API_TOKEN.' }
+          if (-not $env:CLOUDFLARE_API_TOKEN) { throw 'Missing protected environment secret STAGING_CLOUDFLARE_API_TOKEN.' }
           if (-not $env:STAGING_ADMIN_EMAIL) { throw 'Missing protected environment variable STAGING_ADMIN_EMAIL.' }
           $settings = @{
             TeamDomain = 'crimson-art-5ed6.cloudflareaccess.com'
