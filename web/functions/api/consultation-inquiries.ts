@@ -40,8 +40,17 @@ export const onRequestPost: PagesFunction<Env> = async ({request, env}) => {
     form.set('idempotency_key',key);
     const response = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify',{method:'POST',body:form,signal:AbortSignal.timeout(8000)});
     if (!response.ok) return fail('VERIFICATION_UNAVAILABLE',503);
-    const result = await response.json() as {success?:boolean;hostname?:string};
-    if (!result.success || result.hostname !== new URL(request.url).hostname) return fail('VERIFICATION_FAILED',403);
+    const result = await response.json() as {success?:boolean;hostname?:string;action?:string};
+    const hostname = new URL(request.url).hostname;
+    const dummySecret = env.TURNSTILE_SECRET_KEY === '1x0000000000000000000000000000000AA';
+    // Cloudflare's documented dummy response uses localhost. Confine it to this isolated staging app.
+    const stagingDummy = hostname === 'staging.northstar-software-studio.pages.dev' &&
+      env.CF_ACCESS_AUD === '0fbd6f2c71eb120f37fded477fa5ebd7fdd518e2c1b4200942e2ac857c58a3ff' &&
+      env.TURNSTILE_SITE_KEY === '1x00000000000000000000AA' && dummySecret &&
+      token === 'XXXX.DUMMY.TOKEN.XXXX';
+    if (!result.success || (dummySecret && !stagingDummy) ||
+        (stagingDummy ? result.hostname !== 'localhost' || result.action !== 'test' : result.hostname !== hostname))
+      return fail('VERIFICATION_FAILED',403);
   } catch { return fail('VERIFICATION_UNAVAILABLE',503); }
   const hash = await digest(JSON.stringify([name,email,projectType,description,budget,timeline,service]));
   let saved: {id:string;request_hash:string;notification_status:string} | null;
