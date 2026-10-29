@@ -94,9 +94,23 @@ test('staging full business path with synthetic inquiry, owner read, notificatio
  if(process.env.STAGING_COMPLETE_TEST_PAYMENT==='true'){
   // Test-only hosted checkout. Never submit a real payment credential.
   await page.goto(checkoutBody.checkoutUrl!,{waitUntil:'domcontentloaded'});
-  await page.getByPlaceholder(/1234 1234 1234 1234|Card number/i).fill('4242424242424242');
-  await page.getByPlaceholder(/MM.*YY|Expiry/i).fill('1230');
-  await page.getByPlaceholder(/CVC|Security code/i).fill('123');
+  // Stripe-hosted Checkout may render payment fields in a Stripe-owned iframe.
+  // Use accessible labels and explicit frame fallback rather than one placeholder.
+  const cardSelectors=[
+   page.getByLabel(/card number/i),
+   page.getByPlaceholder(/1234 1234 1234 1234|card number/i),
+   page.frameLocator('iframe[title*="Secure payment input"]').getByPlaceholder(/1234 1234 1234 1234|card number/i),
+   page.frameLocator('iframe[name^="__privateStripeFrame"]').getByPlaceholder(/1234 1234 1234 1234|card number/i)
+  ];
+  let cardFound=false;
+  for(const candidate of cardSelectors){
+   try{await candidate.first().waitFor({state:'visible',timeout:4000});await candidate.first().fill('4242424242424242');cardFound=true;break;}catch{}
+  }
+  expect(cardFound,'Stripe-hosted card number field should be visible').toBe(true);
+  const expiry=page.getByLabel(/expiration|expiry/i).or(page.getByPlaceholder(/MM.*YY|expiry/i));
+  const cvc=page.getByLabel(/cvc|security code/i).or(page.getByPlaceholder(/CVC|security code/i));
+  await expiry.first().fill('1230');
+  await cvc.first().fill('123');
   const emailField=page.getByLabel(/email/i);
   if(await emailField.count())await emailField.first().fill('northstar-e2e@example.test');
   await page.getByRole('button',{name:/Pay|Complete payment/i}).click();
