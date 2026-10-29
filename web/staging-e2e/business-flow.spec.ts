@@ -126,7 +126,16 @@ test('staging full business path with synthetic inquiry, owner read, notificatio
   await page.getByRole('textbox',{name:/cvc|security code|cvv/i}).fill('123');
   const name=page.getByRole('textbox',{name:/name on card|cardholder/i});
   if(await name.isVisible())await name.fill('Northstar E2E');
-  await page.getByTestId('hosted-payment-submit-button').or(page.getByRole('button',{name:/^(Pay|Complete payment)/i})).first().click();
+  // Run #28 trace proves the final control is the visible, accessible button "Pay".
+  // Never combine it with "Pay with card": that selects Stripe's hidden accordion.
+  const billingZip=page.getByRole('textbox',{name:/^(ZIP|Postal code|Postcode)$/i});
+  if(await billingZip.isVisible().catch(()=>false))await billingZip.fill('87101');
+  const linkOptIn=page.getByRole('checkbox',{name:/Save my information with Link/i});
+  if(await linkOptIn.isVisible().catch(()=>false) && await linkOptIn.isChecked())await linkOptIn.uncheck();
+  const payButton=page.getByRole('button',{name:'Pay',exact:true});
+  await expect(payButton,'Stripe TEST final Pay button').toBeVisible({timeout:15000});
+  await expect(payButton).toBeEnabled();
+  await payButton.click({timeout:15000});
   await expect(page).toHaveURL(/checkout\/success/,{timeout:60000});
   await expect.poll(async()=>{
    const result=await request.get('/api/stripe/reconciliation?orderId='+checkoutBody.orderId,{headers:{'Cf-Access-Jwt-Assertion':assertion!},maxRedirects:0});
