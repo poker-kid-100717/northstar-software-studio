@@ -41,5 +41,12 @@ test('staging full business path with synthetic inquiry, owner read, notificatio
  expect(accepted.status(),'staging quote acceptance').toBe(200);
  expect(await accepted.json()).toMatchObject({ok:true,status:'accepted',paymentStatus:'not_collected'});
  const after=await request.get('/api/quotes/'+quoteToken);
+ expect(after.status(),'accepted quote read-back').toBe(200);
  expect((await after.json()).quote.status).toBe('accepted');
+ // Acceptance tokens are single-use. Replaying the same version must never create a second acceptance.
+ const replay=await request.post('/api/quotes/'+quoteToken,{
+  headers:{Origin:origin,'Content-Type':'application/json'},
+  data:{acceptTerms:true,expectedVersion:quoteBody.quote.version}
+ });
+ expect([400,404,409,410,422],'replayed quote acceptance must be rejected').toContain(replay.status());
 });
