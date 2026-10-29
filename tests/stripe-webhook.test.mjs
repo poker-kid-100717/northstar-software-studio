@@ -44,3 +44,22 @@ test('oversized request rejected',async()=>{
  const body='x'.repeat(65537);
  assert.equal((await post(body,await sign(body))).status,413);
 });
+
+test('future-dated signature outside replay tolerance rejected',async()=>{
+ assert.equal((await post(payload,await sign(payload,Math.floor(Date.now()/1000)+3600))).status,400);
+});
+test('malformed signature and timestamp rejected before database access',async()=>{
+ for(const signature of ['t=not-a-time,v1='+'0'.repeat(64),'t=123,v1='+'0'.repeat(64),'t='+Math.floor(Date.now()/1000)+',v1=garbage']){
+  assert.equal((await post(payload,signature)).status,400);
+ }
+});
+test('wrong webhook secret fails closed before database access',async()=>{
+ assert.equal((await post(payload,await sign(payload),{STRIPE_WEBHOOK_SECRET:'whsec_different_secret'})).status,400);
+});
+test('missing webhook secret fails closed',async()=>{
+ assert.equal((await post(payload,await sign(payload),{STRIPE_WEBHOOK_SECRET:''})).status,503);
+});
+test('signed live-mode event rejected in test-only endpoint',async()=>{
+ const live=JSON.stringify({...JSON.parse(payload),livemode:true});
+ assert.equal((await post(live,await sign(live))).status,400);
+});
