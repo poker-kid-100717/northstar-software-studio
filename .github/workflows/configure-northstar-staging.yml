@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       apply:
-        description: Apply the six Preview settings after a successful dry run
+        description: Apply the seven Preview settings after a successful dry run
         type: boolean
         required: true
         default: false
