@@ -200,3 +200,33 @@ test('notification includes the separately stored catalog service',async()=>{
  providerStatus=200;await intake();
  assert.match(JSON.parse(notifications[0].body).text,/Selected service: Automation/);
 });
+
+const stagingTurnstileCases = [
+ {name:'accepts documented staging dummy response',status:200},
+ {name:'rejects dummy keys on production hostname',host:'northstar-software-studio.pages.dev',status:403},
+ {name:'rejects dummy keys on another preview',host:'other.northstar-software-studio.pages.dev',status:403},
+ {name:'rejects wrong staging audience',aud:'other-app',status:403},
+ {name:'rejects wrong staging site key',siteKey:'other-key',status:403},
+ {name:'rejects non-dummy token',token:'other-token',status:403},
+ {name:'rejects unsuccessful dummy verdict',success:false,status:403},
+ {name:'rejects unexpected dummy hostname',responseHost:'attacker.test',status:403},
+ {name:'rejects unexpected dummy action',action:'other',status:403},
+];
+for (const c of stagingTurnstileCases) test(c.name,async()=>{
+ env.TURNSTILE_SECRET_KEY='1x0000000000000000000000000000000AA';
+ env.TURNSTILE_SITE_KEY=c.siteKey??'1x00000000000000000000AA';
+ env.CF_ACCESS_AUD=c.aud??'0fbd6f2c71eb120f37fded477fa5ebd7fdd518e2c1b4200942e2ac857c58a3ff';
+ const baseFetch=globalThis.fetch;
+ globalThis.fetch=async(url,init)=>String(url).includes('siteverify')
+   ? Response.json({success:c.success??true,hostname:c.responseHost??'localhost',action:c.action??'test'})
+   : baseFetch(url,init);
+ const origin='https://'+(c.host??'staging.northstar-software-studio.pages.dev');
+ const request=new Request(origin+'/api/consultation-inquiries',{
+   method:'POST',headers:{'Content-Type':'application/json',Origin:origin,'CF-Connecting-IP':'192.0.2.1'},
+   body:JSON.stringify({...input,turnstileToken:c.token??'XXXX.DUMMY.TOKEN.XXXX'})
+ });
+ const response=await h.intake.onRequestPost({request,env,params:{}});
+ assert.equal(response.status,c.status);
+ assert.equal(db.db.prepare('SELECT count(*) n FROM consultation_inquiries').get().n,c.status===200?1:0);
+ if(c.status===403) assert.equal(notifications.length,0);
+});
