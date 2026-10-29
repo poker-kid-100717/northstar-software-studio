@@ -52,6 +52,6 @@ export const onRequestPost:PagesFunction<Env>=async({request,env})=>{
       "UPDATE service_orders SET payment_provider='stripe',provider_checkout_session_id=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=? AND status='awaiting_payment' AND provider_checkout_session_id IS NULL"
     ).bind(session.id,order.id).run();
     if(stored.meta?.changes!==1)return reply({error:'CHECKOUT_CONFLICT'},409);
-    return reply({checkoutUrl:session.url,mode:'test',paymentStatus:'awaiting_payment'});
+    return reply({checkoutUrl:session.url,orderId:order.id,mode:'test',paymentStatus:'awaiting_payment'});
   }catch{return reply({error:'CHECKOUT_UNAVAILABLE'},503);}
 };
