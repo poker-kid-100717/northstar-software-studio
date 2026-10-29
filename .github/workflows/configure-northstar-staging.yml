@@ -26,14 +26,16 @@ jobs:
         shell: pwsh
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          STAGING_ADMIN_EMAIL: ${{ vars.STAGING_ADMIN_EMAIL }}
           APPLY_PREVIEW: ${{ inputs.apply }}
         run: |
           $ErrorActionPreference = 'Stop'
           if (-not $env:CLOUDFLARE_API_TOKEN) { throw 'Missing protected environment secret CLOUDFLARE_API_TOKEN.' }
+          if (-not $env:STAGING_ADMIN_EMAIL) { throw 'Missing protected environment variable STAGING_ADMIN_EMAIL.' }
           $settings = @{
             TeamDomain = 'crimson-art-5ed6.cloudflareaccess.com'
             AccessAudience = '0fbd6f2c71eb120f37fded477fa5ebd7fdd518e2c1b4200942e2ac857c58a3ff'
-            AdminEmail = 'joshuad100717@outlook.com'
+            AdminEmail = $env:STAGING_ADMIN_EMAIL
           }
           ./scripts/Configure-NorthstarStaging.ps1 @settings
           if ($env:APPLY_PREVIEW -eq 'true') {
