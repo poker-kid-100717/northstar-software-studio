@@ -53,7 +53,10 @@ export const onRequestPost: PagesFunction<Env> = async ({request, env}) => {
         (stagingDummy ? !['localhost','example.com',hostname].includes(result.hostname ?? '') : result.hostname !== hostname))
       return fail('VERIFICATION_FAILED',403);
   } catch { return fail('VERIFICATION_UNAVAILABLE',503); }
-  const hash = await digest(JSON.stringify([name,email,projectType,description,budget,timeline,service,leadSource]));
+  // Preserve the fingerprint of existing default-source retries across deployment.
+  const fingerprint = [name,email,projectType,description,budget,timeline,service];
+  if (leadSource !== 'direct') fingerprint.push(leadSource);
+  const hash = await digest(JSON.stringify(fingerprint));
   let saved: {id:string;request_hash:string;notification_status:string} | null;
   try {
     const result = await db.prepare('INSERT INTO consultation_inquiries(id,contact_name,contact_email,project_type,description,budget,timeline,selected_service,source,idempotency_key,request_hash) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING')
