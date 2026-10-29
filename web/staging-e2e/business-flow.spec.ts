@@ -72,7 +72,7 @@ test('staging full business path with synthetic inquiry, owner read, notificatio
  }
  // Test Stripe session creation only; no card entry, charge, or payment-state mutation.
  const checkout=await request.post('/api/checkout/session',{
-  headers:{Origin:origin,'Content-Type':'application/json'},
+  headers:{'Cf-Access-Jwt-Assertion':assertion!,Origin:origin,'Content-Type':'application/json'},
   data:{token:quoteToken}
  });
  const checkoutResult=await checkout.json() as {error?:string;checkoutUrl?:string;orderId?:string;mode?:string;paymentStatus?:string};
@@ -88,7 +88,9 @@ test('staging full business path with synthetic inquiry, owner read, notificatio
  expect(reconciliation).toMatchObject({mode:'test',checked:1});
  expect(reconciliation.results[0]).toMatchObject({orderId:checkoutBody.orderId,localStatus:'awaiting_payment',finding:'MATCH'});
  // Checkout cannot be started twice for this order.
- const again=await request.post('/api/checkout/session',{headers:{Origin:origin,'Content-Type':'application/json'},data:{token:quoteToken}});
+ const anon=await request.post('/api/checkout/session',{headers:{Origin:origin,'Content-Type':'application/json'},data:{token:quoteToken},maxRedirects:0});
+ expect([401,403],'checkout without owner identity must be denied').toContain(anon.status());
+ const again=await request.post('/api/checkout/session',{headers:{'Cf-Access-Jwt-Assertion':assertion!,Origin:origin,'Content-Type':'application/json'},data:{token:quoteToken}});
  expect(again.status(),'duplicate checkout blocked').toBe(409);
 
  if(process.env.STAGING_COMPLETE_TEST_PAYMENT==='true'){

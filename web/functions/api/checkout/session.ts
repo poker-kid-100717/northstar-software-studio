@@ -1,9 +1,9 @@
 // Stripe test-only Checkout for accepted, unpaid customer quotes.
+// Owner pilot: a quote token alone never authorizes a payment session; the Cloudflare Access owner JWT is verified server-side.
 // Payment state MUST be set only by a separately verified Stripe webhook.
-interface Db {
-  prepare(sql:string):{bind(...params:unknown[]):{first<T>():Promise<T|null>;run():Promise<{meta?:{changes?:number}}>}};
-}
-interface Env { INQUIRIES_DB?:Db; STRIPE_SECRET_KEY?:string; STRIPE_CHECKOUT_TEST_ENABLED?:string; QUOTE_ACCEPTANCE_ENABLED?:string }
+import { authorize } from '../admin/inquiries';
+import type { Env as AdminEnv } from '../../_lib/inquiry';
+interface Env extends AdminEnv { STRIPE_SECRET_KEY?:string; STRIPE_CHECKOUT_TEST_ENABLED?:string; QUOTE_ACCEPTANCE_ENABLED?:string }
 const reply=(body:object,status=200)=>Response.json(body,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer'}});
 const sha256=async(value:string)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))).map(b=>b.toString(16).padStart(2,'0')).join('');
 interface Order {id:string; quote_id:string; status:string; amount_cents:number; currency:string; service_name:string; provider_checkout_session_id:string|null}
@@ -11,6 +11,8 @@ export const onRequestPost:PagesFunction<Env>=async({request,env})=>{
   // Never enable live charges through this endpoint.
   if(env.STRIPE_CHECKOUT_TEST_ENABLED!=='true'||env.QUOTE_ACCEPTANCE_ENABLED!=='true')return reply({error:'CHECKOUT_DISABLED'},503);
   if(!env.STRIPE_SECRET_KEY?.startsWith('sk_test_')||!env.INQUIRIES_DB)return reply({error:'CHECKOUT_NOT_CONFIGURED'},503);
+  const denied=await authorize(request,env);
+  if(denied)return denied;
   if(request.headers.get('Origin')!==new URL(request.url).origin)return reply({error:'INVALID_ORIGIN'},403);
   if(!request.headers.get('Content-Type')?.toLowerCase().startsWith('application/json'))return reply({error:'INVALID_CONTENT_TYPE'},415);
   let input:unknown;
