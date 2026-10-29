@@ -19,12 +19,15 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
  if (env.STRIPE_CHECKOUT_TEST_ENABLED !== 'true' || !env.STRIPE_SECRET_KEY?.startsWith('sk_test_')) {
   return json({error:'STRIPE_TEST_RECONCILIATION_DISABLED'},503);
  }
- const rawLimit=new URL(request.url).searchParams.get('limit') ?? '10';
+ const url=new URL(request.url);
+ const rawLimit=url.searchParams.get('limit') ?? '10';
+ const orderId=url.searchParams.get('orderId');
+ if(orderId!==null && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderId))return json({error:'INVALID_ORDER_ID'},400);
  if (!/^(?:[1-9]|10)$/.test(rawLimit)) return json({error:'INVALID_LIMIT'},400);
  try {
   const orders=await env.INQUIRIES_DB!.prepare(
-   "SELECT id,status,amount_cents,currency,provider_checkout_session_id,provider_payment_intent_id FROM service_orders WHERE provider_checkout_session_id IS NOT NULL ORDER BY created_at DESC LIMIT ?"
-  ).bind(Number(rawLimit)).all<LocalOrder>();
+   "SELECT id,status,amount_cents,currency,provider_checkout_session_id,provider_payment_intent_id FROM service_orders WHERE provider_checkout_session_id IS NOT NULL AND (? IS NULL OR id=?) ORDER BY created_at DESC LIMIT ?"
+  ).bind(orderId,orderId,Number(rawLimit)).all<LocalOrder>();
   const results: Array<{orderId:string; localStatus:string; finding:string; }> = [];
   for(const order of orders.results) {
    // Refuse malformed identifiers before using them in a provider URL.
