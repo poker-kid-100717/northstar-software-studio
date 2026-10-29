@@ -72,7 +72,7 @@ test('staging full business path with synthetic inquiry, owner read, notificatio
  }
  // Test Stripe session creation only; no card entry, charge, or payment-state mutation.
  const checkout=await request.post('/api/checkout/session',{
-  headers:{Origin:origin,'Content-Type':'application/json'},
+  headers:{'Cf-Access-Jwt-Assertion':assertion!,Origin:origin,'Content-Type':'application/json'},
   data:{token:quoteToken}
  });
  const checkoutResult=await checkout.json() as {error?:string;checkoutUrl?:string;orderId?:string;mode?:string;paymentStatus?:string};
@@ -88,7 +88,9 @@ test('staging full business path with synthetic inquiry, owner read, notificatio
  expect(reconciliation).toMatchObject({mode:'test',checked:1});
  expect(reconciliation.results[0]).toMatchObject({orderId:checkoutBody.orderId,localStatus:'awaiting_payment',finding:'MATCH'});
  // Checkout cannot be started twice for this order.
- const again=await request.post('/api/checkout/session',{headers:{Origin:origin,'Content-Type':'application/json'},data:{token:quoteToken}});
+ const anon=await request.post('/api/checkout/session',{headers:{Origin:origin,'Content-Type':'application/json'},data:{token:quoteToken},maxRedirects:0});
+ expect([401,403],'checkout without owner identity must be denied').toContain(anon.status());
+ const again=await request.post('/api/checkout/session',{headers:{'Cf-Access-Jwt-Assertion':assertion!,Origin:origin,'Content-Type':'application/json'},data:{token:quoteToken}});
  expect(again.status(),'duplicate checkout blocked').toBe(409);
 
  if(process.env.STAGING_COMPLETE_TEST_PAYMENT==='true'){
@@ -100,50 +102,31 @@ test('staging full business path with synthetic inquiry, owner read, notificatio
   const emailField=page.getByRole('textbox',{name:/email/i}).or(page.getByPlaceholder(/email/i));
   if(await emailField.first().isVisible().catch(()=>false))
    await emailField.first().fill('northstar-e2e@example.test');
-  // Run #21 proved Stripe's actual Pay with card button intercepts pointer
-  // events over the visible Card label. Target the button itself, not its label.
-  // Playwright may classify an expanded accordion button as hidden; force is
-  // appropriate only for this verified Stripe-owned TEST checkout control.
-  const cardButton=page.locator('button[data-testid="card-accordion-item-button"][aria-label="Pay with card"]');
-  await expect(cardButton,'Stripe card payment control should exist').toHaveCount(1,{timeout:5000});
-  try {
-   await cardButton.click({force:true,timeout:5000});
-  } catch {
-   throw new Error('Could not activate Stripe TEST Card method within 5s; inspect Checkout trace.');
-  }
+  // Run #24 trace: the "Pay with card" button is a zero-area overlay that Playwright
+  // reports as outside the viewport, so force-clicking it can never work. The real
+  // user target is the visible "Card" row; a coordinate click on it goes through the
+  // browser hit test and reaches whichever overlay Stripe places on top.
+  const cardLabel=page.locator('#payment-method-label-card');
+  await expect(cardLabel,'Stripe Card payment method row').toBeVisible({timeout:15000});
+  const box=await cardLabel.boundingBox();
+  expect(box,'Card row has a layout box').not.toBeNull();
+  await page.mouse.click(box!.x+box!.width/2,box!.y+box!.height/2);
 
-  const fields=[
-   {name:'card number',pattern:/card number|1234 1234 1234 1234/i,value:'4242424242424242'},
-   {name:'expiry',pattern:/expiration|expiry|mm.*yy/i,value:'1230'},
-   {name:'security code',pattern:/cvc|security code|cvv/i,value:'123'}
-  ];
-  for(const field of fields){
-   let filled=false;
-   // Search every frame; Stripe can change the nesting and names of secure inputs.
-   for(let attempt=0;attempt<10&&!filled;attempt++){
-    for(const frame of page.frames()){
-     const locator=frame.getByRole('textbox',{name:field.pattern})
-      .or(frame.getByPlaceholder(field.pattern))
-      .or(frame.locator('input[aria-label],input[placeholder]').filter({visible:true}));
-     const inputs=await locator.count().catch(()=>0);
-     for(let i=0;i<Math.min(inputs,12);i++){
-      const input=locator.nth(i);
-      const descriptor=((await input.getAttribute('aria-label').catch(()=>''))||'')+' '+((await input.getAttribute('placeholder').catch(()=>''))||'');
-      if(!field.pattern.test(descriptor))continue;
-      try{await input.fill(field.value,{timeout:1500});filled=true;break;}catch{}
-     }
-     if(filled)break;
-    }
-    if(!filled)await page.waitForTimeout(700);
-   }
-   if(!filled){
-    // Metadata only: never write URLs with session tokens, input values, or secrets.
-    const frames=page.frames().map(f=>({host:(()=>{try{return new URL(f.url()).hostname}catch{return 'unknown'}})()}));
-    await testInfo.attach('stripe-frame-hosts',{body:JSON.stringify(frames),contentType:'application/json'});
-    throw new Error('Stripe hosted '+field.name+' field not visible. Inspect protected Playwright trace/screenshot; hosted Checkout may be showing a different payment method, blocked by bot protection, or changed its markup.');
-   }
+  // Hosted Checkout renders card inputs in the top-level document; assert activation
+  // through the accessible fields rather than assuming a click worked.
+  const cardNumber=page.getByRole('textbox',{name:/card number/i});
+  try{
+   await expect(cardNumber).toBeVisible({timeout:15000});
+  }catch(e){
+   await testInfo.attach('stripe-checkout-aria',{body:await page.locator('body').ariaSnapshot().catch(()=>'unavailable'),contentType:'text/plain'});
+   throw new Error('Stripe Card method did not expand after selecting the Card row; see attached aria snapshot and trace.');
   }
-  await page.getByRole('button',{name:/Pay|Complete payment/i}).click();
+  await cardNumber.fill('4242424242424242');
+  await page.getByRole('textbox',{name:/expiration|expiry|mm.*yy/i}).fill('1230');
+  await page.getByRole('textbox',{name:/cvc|security code|cvv/i}).fill('123');
+  const name=page.getByRole('textbox',{name:/name on card|cardholder/i});
+  if(await name.isVisible())await name.fill('Northstar E2E');
+  await page.getByTestId('hosted-payment-submit-button').or(page.getByRole('button',{name:/^(Pay|Complete payment)/i})).first().click();
   await expect(page).toHaveURL(/checkout\/success/,{timeout:60000});
   await expect.poll(async()=>{
    const result=await request.get('/api/stripe/reconciliation?orderId='+checkoutBody.orderId,{headers:{'Cf-Access-Jwt-Assertion':assertion!},maxRedirects:0});
