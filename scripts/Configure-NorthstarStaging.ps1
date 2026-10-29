@@ -42,11 +42,11 @@ try {
  $prodDb=$projectData.deployment_configs.production.d1_databases.INQUIRIES_DB.id
  if([string]::IsNullOrWhiteSpace($prodDb) -or $prodDb -eq $StagingDatabaseId){throw 'Production D1 binding is missing or points to staging. Refusing update.'}
  $current=$preview.env_vars
- $keys=@('TURNSTILE_SITE_KEY','TURNSTILE_SECRET_KEY','CF_ACCESS_TEAM_DOMAIN','CF_ACCESS_AUD','CF_ACCESS_ADMIN_EMAIL','QUOTE_ACCEPTANCE_ENABLED')
+ $keys=@('TURNSTILE_SITE_KEY','TURNSTILE_SECRET_KEY','CF_ACCESS_TEAM_DOMAIN','CF_ACCESS_AUD','CF_ACCESS_ADMIN_EMAIL','QUOTE_ACCEPTANCE_ENABLED','STRIPE_CHECKOUT_TEST_ENABLED')
  foreach($key in $keys){if($null -ne $current.$key){Write-Host "$key currently defined in Preview (will replace)" } else {Write-Host "$key not yet defined in Preview"}}
  Write-Host "Verified Preview D1 binding: $previewDb; production D1 differs. Mode: $(if($Apply){'APPLY'}else{'DRY RUN'})."
  if(-not $Apply){Write-Host 'No changes made. Rerun with -Apply after checking Access application and email.';return}
- # PATCH only these six Preview env_vars. No production configuration or other binding is sent.
+ # PATCH only these seven Preview env_vars. No production configuration or other binding is sent.
  # Cloudflare Pages env_vars PATCH supports per-key updates; null is required to delete a key.
  $variables=@{
   TURNSTILE_SITE_KEY=@{type='plain_text';value='1x00000000000000000000AA'}
@@ -55,6 +55,7 @@ try {
   CF_ACCESS_AUD=@{type='plain_text';value=$AccessAudience}
   CF_ACCESS_ADMIN_EMAIL=@{type='plain_text';value=$AdminEmail}
   QUOTE_ACCEPTANCE_ENABLED=@{type='plain_text';value='true'}
+  STRIPE_CHECKOUT_TEST_ENABLED=@{type='plain_text';value='true'}
  }
  $body=@{deployment_configs=@{preview=@{env_vars=$variables}}}|ConvertTo-Json -Depth 12 -Compress
  $update=Invoke-RestMethod -Method Patch -Uri $endpoint -Headers $headers -ContentType 'application/json' -Body $body
@@ -63,7 +64,7 @@ try {
  if($after.deployment_configs.preview.d1_databases.INQUIRIES_DB.id -ne $StagingDatabaseId){throw 'Preview database binding changed unexpectedly.'}
  if($after.deployment_configs.production.d1_databases.INQUIRIES_DB.id -ne $prodDb){throw 'Production database binding changed unexpectedly.'}
  foreach($key in $keys){if($null -eq $after.deployment_configs.preview.env_vars.$key){throw "Missing Preview setting after update: $key"}}
- Write-Host 'Six Preview settings configured and verified by name. No secret values printed. Redeploy preview to activate.'
+ Write-Host 'Seven Preview settings configured and verified by name. No secret values printed. Redeploy preview to activate.'
 } finally {
  $headers.Authorization=$null
  $token=$null

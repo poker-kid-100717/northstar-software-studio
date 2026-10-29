@@ -44,3 +44,57 @@ test('oversized request rejected',async()=>{
  const body='x'.repeat(65537);
  assert.equal((await post(body,await sign(body))).status,413);
 });
+
+test('future-dated signature outside replay tolerance rejected',async()=>{
+ assert.equal((await post(payload,await sign(payload,Math.floor(Date.now()/1000)+3600))).status,400);
+});
+test('malformed signature and timestamp rejected before database access',async()=>{
+ for(const signature of ['t=not-a-time,v1='+'0'.repeat(64),'t=123,v1='+'0'.repeat(64),'t='+Math.floor(Date.now()/1000)+',v1=garbage']){
+  assert.equal((await post(payload,signature)).status,400);
+ }
+});
+test('wrong webhook secret fails closed before database access',async()=>{
+ assert.equal((await post(payload,await sign(payload),{STRIPE_WEBHOOK_SECRET:'whsec_different_secret'})).status,400);
+});
+test('missing webhook secret fails closed',async()=>{
+ assert.equal((await post(payload,await sign(payload),{STRIPE_WEBHOOK_SECRET:''})).status,503);
+});
+test('signed live-mode event rejected in test-only endpoint',async()=>{
+ const live=JSON.stringify({...JSON.parse(payload),livemode:true});
+ assert.equal((await post(live,await sign(live))).status,400);
+});
+
+test('signed malformed JSON shapes fail closed instead of throwing',async()=>{
+ for(const body of ['null','[]','42','"text"','{}','{"id":42,"livemode":false,"type":"checkout.session.completed"}','{"id":"evt_test","livemode":false,"type":42}']){
+  assert.equal((await post(body,await sign(body))).status,400,body);
+ }
+});
+test('signed malformed session identifiers fail closed',async()=>{
+ for(const obj of [{id:42},{id:'cs_test_123',payment_intent:42}]){
+  const body=JSON.stringify({id:'evt_test',livemode:false,type:'checkout.session.completed',data:{object:{...obj,livemode:false,payment_status:'paid',amount_total:100,currency:'usd',client_reference_id:'ord_1',metadata:{order_id:'ord_1'}}}});
+  assert.equal((await post(body,await sign(body))).status,400);
+ }
+});
+
+test('signed unsupported Stripe events are acknowledged without touching D1',async()=>{
+ for(const type of ['charge.refunded','payment_intent.payment_failed','checkout.session.expired']){
+  const body=JSON.stringify({id:'evt_ignored',livemode:false,type,data:{object:{}}});
+  assert.equal((await post(body,await sign(body))).status,200,type);
+ }
+});
+test('signed checkout events with invalid payment details cannot touch D1',async()=>{
+ const valid={id:'cs_test_123',livemode:false,payment_status:'paid',amount_total:24900,currency:'usd',payment_intent:'pi_test_123',client_reference_id:'order-1',metadata:{order_id:'order-1'}};
+ const cases=[
+  {...valid,amount_total:0.5},
+  {...valid,amount_total:-1},
+  {...valid,currency:'eur'},
+  {...valid,payment_status:'unpaid'},
+  {...valid,livemode:true},
+  {...valid,metadata:{order_id:'another-order'}},
+  {...valid,id:'cs_live_not_test'}
+ ];
+ for(const [i,object] of cases.entries()){
+  const body=JSON.stringify({id:'evt_invalid_'+i,livemode:false,type:'checkout.session.completed',data:{object}});
+  assert.equal((await post(body,await sign(body))).status,400,'invalid checkout case '+i);
+ }
+});

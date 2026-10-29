@@ -1,8 +1,18 @@
 name: Staging end-to-end acceptance
 on:
   workflow_dispatch:
+    inputs:
+      require_stripe_checkout:
+        description: 'Require real Stripe TEST checkout session creation (fails if staging checkout disabled)'
+        type: boolean
+        required: true
+        default: false
 permissions:
   contents: read
+# The quote token is one-use. Never run two acceptance jobs against it in parallel.
+concurrency:
+  group: northstar-staging-acceptance
+  cancel-in-progress: false
 jobs:
   staging:
     runs-on: ubuntu-latest
@@ -18,11 +28,10 @@ jobs:
           NORTHSTAR_STAGING_URL: ${{ vars.NORTHSTAR_STAGING_URL }}
           STAGING_CF_ACCESS_JWT: ${{ secrets.STAGING_CF_ACCESS_JWT }}
           STAGING_TURNSTILE_TEST_TOKEN: ${{ secrets.STAGING_TURNSTILE_TEST_TOKEN }}
-          STAGING_QUOTE_TOKEN: ${{ secrets.STAGING_QUOTE_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
-          for name in NORTHSTAR_STAGING_URL STAGING_CF_ACCESS_JWT STAGING_TURNSTILE_TEST_TOKEN STAGING_QUOTE_TOKEN; do
+          for name in NORTHSTAR_STAGING_URL STAGING_CF_ACCESS_JWT STAGING_TURNSTILE_TEST_TOKEN; do
             if [[ -z "${!name:-}" ]]; then
               echo "::error title=Missing staging configuration::Required protected environment value $name is missing"
               exit 1
@@ -30,10 +39,6 @@ jobs:
           done
           if [[ "$NORTHSTAR_STAGING_URL" != "https://staging.northstar-software-studio.pages.dev" ]]; then
             echo "::error::Refusing origin that is not a dedicated staging/preview HTTPS hostname"
-            exit 1
-          fi
-          if [[ ! "$STAGING_QUOTE_TOKEN" =~ ^[a-fA-F0-9]{64}$ ]]; then
-            echo "::error::STAGING_QUOTE_TOKEN must be a 64-character hexadecimal staging token"
             exit 1
           fi
           echo "Staging origin and required protected values present; values not printed."
@@ -49,7 +54,7 @@ jobs:
           NORTHSTAR_STAGING_URL: ${{ vars.NORTHSTAR_STAGING_URL }}
           STAGING_CF_ACCESS_JWT: ${{ secrets.STAGING_CF_ACCESS_JWT }}
           STAGING_TURNSTILE_TEST_TOKEN: ${{ secrets.STAGING_TURNSTILE_TEST_TOKEN }}
-          STAGING_QUOTE_TOKEN: ${{ secrets.STAGING_QUOTE_TOKEN }}
+          STAGING_REQUIRE_STRIPE_CHECKOUT: ${{ inputs.require_stripe_checkout }}
         run: npx playwright test --config playwright.staging.config.ts
       - uses: actions/upload-artifact@v4
         if: always()
