@@ -1,6 +1,7 @@
 import { Env, digest, deliver, json as reply, readJson, validId } from '../_lib/inquiry';
 const types = new Set(['software-repair','integration','automation','application','other']);
 const budgets = new Set(['unsure','under-250','250-1000','1000-5000','5000-plus']);
+const leadSources = new Set(['direct','referral','organic-search','social','email','outreach','other']);
 const timelines = new Set(['flexible','this-week','2-4-weeks','later']);
 const fail = (error: string, status: number) => reply({error}, status);
 export const onRequestGet: PagesFunction<Env> = async ({env}) => reply({siteKey: env.TURNSTILE_SITE_KEY ?? null});
@@ -14,10 +15,11 @@ export const onRequestPost: PagesFunction<Env> = async ({request, env}) => {
   const str = (key: string) => typeof body[key] === 'string' ? (body[key] as string).trim() : '';
   const name = str('name'), email = str('email').toLowerCase(), description = str('description');
   const projectType = str('projectType'), budget = str('budget'), timeline = str('timeline'), service = str('selectedService');
+  const leadSource = str('leadSource') || 'direct';
   const key = request.headers.get('Idempotency-Key') || crypto.randomUUID();
   if (!validId(key)) return fail('INVALID_IDEMPOTENCY_KEY',400);
   if (!name || name.length > 100 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 ||
-      description.length < 30 || description.length > 3000 || !types.has(projectType) || !budgets.has(budget) || !timelines.has(timeline) || service.length > 120)
+      description.length < 30 || description.length > 3000 || !types.has(projectType) || !budgets.has(budget) || !timelines.has(timeline) || service.length > 120 || !leadSources.has(leadSource))
     return fail('INVALID_INQUIRY',400);
   if (!env.INQUIRIES_DB) return fail('INQUIRY_STORAGE_UNAVAILABLE',503);
   if (!env.TURNSTILE_SECRET_KEY) return fail('VERIFICATION_UNAVAILABLE',503);
@@ -51,11 +53,11 @@ export const onRequestPost: PagesFunction<Env> = async ({request, env}) => {
         (stagingDummy ? !['localhost','example.com',hostname].includes(result.hostname ?? '') : result.hostname !== hostname))
       return fail('VERIFICATION_FAILED',403);
   } catch { return fail('VERIFICATION_UNAVAILABLE',503); }
-  const hash = await digest(JSON.stringify([name,email,projectType,description,budget,timeline,service]));
+  const hash = await digest(JSON.stringify([name,email,projectType,description,budget,timeline,service,leadSource]));
   let saved: {id:string;request_hash:string;notification_status:string} | null;
   try {
     const result = await db.prepare('INSERT INTO consultation_inquiries(id,contact_name,contact_email,project_type,description,budget,timeline,selected_service,source,idempotency_key,request_hash) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING')
-      .bind(crypto.randomUUID(),name,email,projectType,description,budget,timeline,service,'consultation',key,hash).run();
+      .bind(crypto.randomUUID(),name,email,projectType,description,budget,timeline,service,leadSource,key,hash).run();
     if (!result.success) return fail('INQUIRY_STORAGE_UNAVAILABLE',503);
     saved = await db.prepare('SELECT id,request_hash,notification_status FROM consultation_inquiries WHERE idempotency_key = ?').bind(key).first();
     if (!saved) return fail('INQUIRY_STORAGE_UNAVAILABLE',503);
