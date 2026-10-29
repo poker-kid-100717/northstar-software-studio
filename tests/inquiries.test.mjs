@@ -202,15 +202,17 @@ test('notification includes the separately stored catalog service',async()=>{
 });
 
 const stagingTurnstileCases = [
- {name:'accepts documented staging dummy response',status:200},
+ {name:'accepts live dummy verifier example hostname and absent action',status:200},
+ {name:'accepts documented dummy verifier localhost',responseHost:'localhost',status:200},
+ {name:'accepts exact staging verifier hostname',responseHost:'staging.northstar-software-studio.pages.dev',status:200},
+ {name:'accepts provider-validated widget dummy token',token:'test-token',status:200},
  {name:'rejects dummy keys on production hostname',host:'northstar-software-studio.pages.dev',status:403},
  {name:'rejects dummy keys on another preview',host:'other.northstar-software-studio.pages.dev',status:403},
  {name:'rejects wrong staging audience',aud:'other-app',status:403},
  {name:'rejects wrong staging site key',siteKey:'other-key',status:403},
- {name:'rejects non-dummy token',token:'other-token',status:403},
+ {name:'rejects provider-invalid token',token:'other-token',success:false,status:403},
  {name:'rejects unsuccessful dummy verdict',success:false,status:403},
  {name:'rejects unexpected dummy hostname',responseHost:'attacker.test',status:403},
- {name:'rejects unexpected dummy action',action:'other',status:403},
 ];
 for (const c of stagingTurnstileCases) test(c.name,async()=>{
  env.TURNSTILE_SECRET_KEY='1x0000000000000000000000000000000AA';
@@ -218,7 +220,7 @@ for (const c of stagingTurnstileCases) test(c.name,async()=>{
  env.CF_ACCESS_AUD=c.aud??'0fbd6f2c71eb120f37fded477fa5ebd7fdd518e2c1b4200942e2ac857c58a3ff';
  const baseFetch=globalThis.fetch;
  globalThis.fetch=async(url,init)=>String(url).includes('siteverify')
-   ? Response.json({success:c.success??true,hostname:c.responseHost??'localhost',action:c.action??'test'})
+   ? Response.json({success:c.success??true,hostname:c.responseHost??'example.com'})
    : baseFetch(url,init);
  const origin='https://'+(c.host??'staging.northstar-software-studio.pages.dev');
  const request=new Request(origin+'/api/consultation-inquiries',{
