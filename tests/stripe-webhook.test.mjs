@@ -75,3 +75,26 @@ test('signed malformed session identifiers fail closed',async()=>{
   assert.equal((await post(body,await sign(body))).status,400);
  }
 });
+
+test('signed unsupported Stripe events are acknowledged without touching D1',async()=>{
+ for(const type of ['charge.refunded','payment_intent.payment_failed','checkout.session.expired']){
+  const body=JSON.stringify({id:'evt_ignored',livemode:false,type,data:{object:{}}});
+  assert.equal((await post(body,await sign(body))).status,200,type);
+ }
+});
+test('signed checkout events with invalid payment details cannot touch D1',async()=>{
+ const valid={id:'cs_test_123',livemode:false,payment_status:'paid',amount_total:24900,currency:'usd',payment_intent:'pi_test_123',client_reference_id:'order-1',metadata:{order_id:'order-1'}};
+ const cases=[
+  {...valid,amount_total:0.5},
+  {...valid,amount_total:-1},
+  {...valid,currency:'eur'},
+  {...valid,payment_status:'unpaid'},
+  {...valid,livemode:true},
+  {...valid,metadata:{order_id:'another-order'}},
+  {...valid,id:'cs_live_not_test'}
+ ];
+ for(const [i,object] of cases.entries()){
+  const body=JSON.stringify({id:'evt_invalid_'+i,livemode:false,type:'checkout.session.completed',data:{object}});
+  assert.equal((await post(body,await sign(body))).status,400,'invalid checkout case '+i);
+ }
+});
