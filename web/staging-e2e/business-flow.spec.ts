@@ -100,9 +100,12 @@ test('staging full business path with synthetic inquiry, owner read, notificatio
   const emailField=page.getByRole('textbox',{name:/email/i}).or(page.getByPlaceholder(/email/i));
   if(await emailField.first().isVisible().catch(()=>false))
    await emailField.first().fill('northstar-e2e@example.test');
-  const cardChoice=page.getByRole('radio',{name:/card/i});
-  if(await cardChoice.first().isVisible().catch(()=>false))
-   await cardChoice.first().check();
+  // The Oct 29 staging trace shows Stripe's payment methods expose buttons,
+  // not accessible radio inputs. Card fields mount only after this button is clicked.
+  const cardChoice=page.getByRole('button',{name:'Pay with card',exact:true});
+  await expect(cardChoice,'Stripe Checkout must offer the Card payment method').toBeVisible({timeout:15000});
+  await cardChoice.click();
+  await expect(page.getByText('Payment method',{exact:true})).toBeVisible();
 
   const fields=[
    {name:'card number',pattern:/card number|1234 1234 1234 1234/i,value:'4242424242424242'},
