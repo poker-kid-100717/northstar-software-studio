@@ -22,6 +22,9 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     const inquiries = await db.prepare(
       "SELECT status, count(*) AS total FROM consultation_inquiries WHERE created_at >= ? GROUP BY status"
     ).bind(since).all<{ status: string; total: number }>();
+    const sources = await db.prepare(
+      "SELECT source, count(*) AS inquiries FROM consultation_inquiries WHERE created_at >= ? GROUP BY source"
+    ).bind(since).all<{ source: string; inquiries: number }>();
     const quotes = await db.prepare(
       "SELECT status, count(*) AS total FROM service_quotes WHERE created_at >= ? GROUP BY status"
     ).bind(since).all<{ status: string; total: number }>();
@@ -40,11 +43,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     const paidAmountCents = paid.reduce((sum,row)=>sum+row.amount_cents,0);
     return Response.json({
       windowDays: days, generatedAt: new Date().toISOString(),
-      inquiries: { total: totalInquiries, byStatus: inquiryCounts },
+      inquiries: { total: totalInquiries, byStatus: inquiryCounts, bySource: sources.results.map(r=>({source:r.source,inquiries:r.inquiries})) },
       quotes: { total: quotes.results.reduce((sum,row)=>sum+row.total,0), accepted: count(quotes.results,['accepted']) },
       orders: { total: orders.results.reduce((sum,row)=>sum+row.total,0), paid: paidOrders, completed: count(orders.results,['completed']), paidAmountCents },
       inquiryToPaidOrderRate: totalInquiries > 0 ? paidOrders / totalInquiries : null,
-      caveats: ['Counts use record creation dates, not event timestamps or cohort attribution.', 'Paid amount is booked order value, not reconciled revenue or profit.', 'No visitor analytics, referral attribution, fees or labor hours are included.']
+      caveats: ['Counts use record creation dates, not event timestamps or cohort attribution.', 'Paid amount is booked order value, not reconciled revenue or profit.', 'Self-reported lead source is not independently verified; no visitor analytics or source-specific paid conversion is included.']
     }, { headers });
   } catch {
     return Response.json({ error: 'FUNNEL_UNAVAILABLE' }, { status: 503, headers });
