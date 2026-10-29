@@ -3,6 +3,10 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+# The quote token is one-use. Never run two acceptance jobs against it in parallel.
+concurrency:
+  group: northstar-staging-acceptance
+  cancel-in-progress: false
 jobs:
   staging:
     runs-on: ubuntu-latest
