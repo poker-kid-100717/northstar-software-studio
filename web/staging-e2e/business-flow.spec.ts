@@ -100,12 +100,13 @@ test('staging full business path with synthetic inquiry, owner read, notificatio
   const emailField=page.getByRole('textbox',{name:/email/i}).or(page.getByPlaceholder(/email/i));
   if(await emailField.first().isVisible().catch(()=>false))
    await emailField.first().fill('northstar-e2e@example.test');
-  // The Oct 29 staging trace shows Stripe's payment methods expose buttons,
-  // not accessible radio inputs. Card fields mount only after this button is clicked.
+  // Stripe may already have the Card accordion expanded. In that state the
+  // accordion's "Pay with card" button is retained in the DOM but hidden.
+  // Only click when the card choice is actually visible; otherwise inspect
+  // already-mounted payment fields rather than failing on a hidden button.
   const cardChoice=page.getByRole('button',{name:'Pay with card',exact:true});
-  await expect(cardChoice,'Stripe Checkout must offer the Card payment method').toBeVisible({timeout:15000});
-  await cardChoice.click();
-  await expect(page.getByText('Payment method',{exact:true})).toBeVisible();
+  if(await cardChoice.isVisible().catch(()=>false))
+   await cardChoice.click();
 
   const fields=[
    {name:'card number',pattern:/card number|1234 1234 1234 1234/i,value:'4242424242424242'},
