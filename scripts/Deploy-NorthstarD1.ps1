@@ -7,6 +7,7 @@ param(
   [string]$Database = 'northstar-inquiries',
   [string]$DatabaseId = 'ef07d532-76a3-4a7e-bb1f-80fe4f021ec9',
   [string]$Repository = 'poker-kid-100717/northstar-software-studio',
+  [switch]$RequireEncryptedBackup,
   [string]$BackupDirectory = (Join-Path $HOME 'NorthstarD1Backups')
 )
 $ErrorActionPreference = 'Stop'
@@ -80,6 +81,8 @@ try {
   }
   if (-not $Apply) { Write-Host 'DRY RUN: no backup, migration, or workflow dispatch performed. Use -Apply with -ConfirmDatabaseId to proceed.'; return }
   if ($ConfirmDatabaseId -ne $DatabaseId) { throw 'For production execution, pass -ConfirmDatabaseId with the verified production UUID.' }
+  if ($RequireEncryptedBackup -and -not $env:NORTHSTAR_D1_BACKUP_PASSPHRASE) { throw 'Missing protected backup encryption secret NORTHSTAR_D1_BACKUP_PASSPHRASE.' }
+  if ($RequireEncryptedBackup -and -not (Get-Command 'openssl' -ErrorAction SilentlyContinue)) { throw 'OpenSSL is required for encrypted backup.' }
   Run 'gh' @('auth','status') | Out-Null
   New-Item -ItemType Directory -Path $BackupDirectory -Force | Out-Null
   $backup = Join-Path $BackupDirectory ("northstar-inquiries-{0}.sql" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
@@ -87,7 +90,18 @@ try {
   if (-not (Test-Path $backup) -or (Get-Item $backup).Length -lt 500 -or -not (Select-String -LiteralPath $backup -Pattern 'consultation_inquiries' -SimpleMatch -Quiet)) {
     throw 'Production export verification failed; no migrations executed.'
   }
-  Write-Host "Backup saved at $backup. Protect this file: it may contain customer information."
+  if ($RequireEncryptedBackup) {
+    $encrypted = "$backup.enc"
+    try {
+      Run 'openssl' @('enc','-aes-256-cbc','-pbkdf2','-iter','200000','-salt','-in',$backup,'-out',$encrypted,'-pass','env:NORTHSTAR_D1_BACKUP_PASSPHRASE') | Out-Null
+      if (-not (Test-Path $encrypted) -or (Get-Item $encrypted).Length -lt 500) { throw 'Encrypted backup validation failed; migration refused.' }
+    } finally {
+      if (Test-Path $backup) { Remove-Item -LiteralPath $backup -Force }
+    }
+    Write-Host "Encrypted backup verified: $encrypted. Artifact must be retained securely."
+  } else {
+    Write-Host "Backup saved at $backup. Protect this file: it may contain customer information."
+  }
   foreach ($migration in $migrations) {
     $current = State (Snapshot) $migration.Markers
     if ($current -eq 'present') { Write-Host "Skipping $($migration.File), already present"; continue }
