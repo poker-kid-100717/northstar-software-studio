@@ -41,5 +41,13 @@ test('staging full business path with synthetic inquiry, owner read, notificatio
  expect(accepted.status(),'staging quote acceptance').toBe(200);
  expect(await accepted.json()).toMatchObject({ok:true,status:'accepted',paymentStatus:'not_collected'});
  const after=await request.get('/api/quotes/'+quoteToken);
+ expect(after.status(),'accepted quote read-back').toBe(200);
  expect((await after.json()).quote.status).toBe('accepted');
+ // Acceptance is non-repeatable; the token remains a sensitive read credential until expiry.
+ const replay=await request.post('/api/quotes/'+quoteToken,{
+  headers:{Origin:origin,'Content-Type':'application/json'},
+  data:{acceptTerms:true,expectedVersion:quoteBody.quote.version}
+ });
+ expect(replay.status(),'replayed quote acceptance must conflict').toBe(409);
+ expect(await replay.json()).toMatchObject({error:'QUOTE_CONFLICT'});
 });
