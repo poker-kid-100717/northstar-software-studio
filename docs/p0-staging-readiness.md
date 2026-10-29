@@ -10,10 +10,10 @@ Tracks #111 and #113. **No production changes or live Stripe charges are authori
 - [ ] Create protected GitHub environment `northstar-staging` with approval rules, `NORTHSTAR_STAGING_URL` variable and `STAGING_CF_ACCESS_JWT`, `STAGING_TURNSTILE_TEST_TOKEN`, `STAGING_QUOTE_TOKEN` secrets. Keep all separate from production.
 
 ## Stage 2: prepare single-use synthetic test
-- [ ] Create and send an approved synthetic quote on staging D1; record its fresh 64-character hex acceptance token **only** in protected environment secrets. Tokens are consumed on acceptance; regenerate for reruns.
+- [ ] Create and send an approved synthetic quote on staging D1; record its fresh 64-character hex acceptance token **only** in protected environment secrets. Acceptance can occur only once, but the token remains a sensitive read credential until expiry. Keep it protected after acceptance and seed a fresh quote/token for each rerun.
 - [ ] Use staging-only Resend configuration and a mailbox authorized to receive test mail; do not use real customer email addresses.
 - [ ] Run `.github/workflows/staging-e2e-acceptance.yml` via manual workflow dispatch. Save run URL, timestamp, commit SHA, outcome and non-sensitive failure details in #111.
-- [ ] Verify synthetic inquiry persisted and is visible to authenticated admin, quote accepted once, replay rejected and notification state durable.
+- [ ] Verify synthetic inquiry persisted and is visible to authenticated admin, quote accepted once, replay rejected with HTTP 409 and `QUOTE_CONFLICT`, and notification state durable. PR #115 adds the automated replay assertion; until it is merged, record a separate staging POST using the same token and original expectedVersion and verify that exact response.
 - [ ] Verify **actual Resend delivery** separately with provider event status and a staging mailbox receipt; a successful workflow alone is not delivery evidence.
 
 ## Stage 3: independent production read-only checks
