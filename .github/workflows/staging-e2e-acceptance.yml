@@ -28,7 +28,7 @@ jobs:
               exit 1
             fi
           done
-          if [[ ! "$NORTHSTAR_STAGING_URL" =~ ^https://[a-zA-Z0-9.-]+$ ]] || [[ ! "$NORTHSTAR_STAGING_URL" =~ (staging|preview) ]] || [[ "$NORTHSTAR_STAGING_URL" == *northstar-software-studio.pages.dev* ]]; then
+          if [[ "$NORTHSTAR_STAGING_URL" != "https://staging.northstar-software-studio.pages.dev" ]]; then
             echo "::error::Refusing origin that is not a dedicated staging/preview HTTPS hostname"
             exit 1
           fi

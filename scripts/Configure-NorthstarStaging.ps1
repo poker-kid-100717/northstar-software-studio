@@ -40,7 +40,7 @@ try {
  $previewDb=$preview.d1_databases.INQUIRIES_DB.id
  if($previewDb -ne $StagingDatabaseId){throw "Preview INQUIRIES_DB must be bound to staging D1 $StagingDatabaseId. Refusing update."}
  $prodDb=$projectData.deployment_configs.production.d1_databases.INQUIRIES_DB.id
- if($prodDb -eq $StagingDatabaseId){throw 'Production is pointing to staging D1. Refusing update.'}
+ if([string]::IsNullOrWhiteSpace($prodDb) -or $prodDb -eq $StagingDatabaseId){throw 'Production D1 binding is missing or points to staging. Refusing update.'}
  $current=$preview.env_vars
  $keys=@('TURNSTILE_SITE_KEY','TURNSTILE_SECRET_KEY','CF_ACCESS_TEAM_DOMAIN','CF_ACCESS_AUD','CF_ACCESS_ADMIN_EMAIL','QUOTE_ACCEPTANCE_ENABLED')
  foreach($key in $keys){if($null -ne $current.$key){Write-Host "$key currently defined in Preview (will replace)" } else {Write-Host "$key not yet defined in Preview"}}

@@ -1,0 +1,44 @@
+name: Configure isolated Northstar staging
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Apply the six Preview settings after a successful dry run
+        type: boolean
+        required: true
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: northstar-staging-configuration
+  cancel-in-progress: false
+jobs:
+  preview:
+    if: github.ref == 'refs/heads/main'
+    environment: northstar-staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Dry run and optional Preview-only apply
+        shell: pwsh
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STAGING_CLOUDFLARE_API_TOKEN }}
+          STAGING_ADMIN_EMAIL: ${{ vars.STAGING_ADMIN_EMAIL }}
+          APPLY_PREVIEW: ${{ inputs.apply }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not $env:CLOUDFLARE_API_TOKEN) { throw 'Missing protected environment secret STAGING_CLOUDFLARE_API_TOKEN.' }
+          if (-not $env:STAGING_ADMIN_EMAIL) { throw 'Missing protected environment variable STAGING_ADMIN_EMAIL.' }
+          $settings = @{
+            TeamDomain = 'crimson-art-5ed6.cloudflareaccess.com'
+            AccessAudience = '0fbd6f2c71eb120f37fded477fa5ebd7fdd518e2c1b4200942e2ac857c58a3ff'
+            AdminEmail = $env:STAGING_ADMIN_EMAIL
+          }
+          ./scripts/Configure-NorthstarStaging.ps1 @settings
+          if ($env:APPLY_PREVIEW -eq 'true') {
+            ./scripts/Configure-NorthstarStaging.ps1 @settings -Apply
+          }
+          "Configuration workflow completed for commit $env:GITHUB_SHA. Redeploy staging after apply." >> $env:GITHUB_STEP_SUMMARY
