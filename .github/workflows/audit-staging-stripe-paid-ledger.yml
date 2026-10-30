@@ -26,6 +26,7 @@ jobs:
         shell: bash
         env:
           CF_TOKEN: ${{ secrets.STAGING_CLOUDFLARE_API_TOKEN }}
+          D1_READ_TOKEN: ${{ secrets.STAGING_CLOUDFLARE_D1_READ_TOKEN }}
           ACCOUNT: ${{ vars.STAGING_CLOUDFLARE_ACCOUNT_ID }}
           STAGING_URL: ${{ vars.NORTHSTAR_STAGING_URL }}
           ORDER_ID: ${{ inputs.order_id }}
@@ -33,6 +34,7 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$CF_TOKEN" || { echo "::error::Missing protected STAGING_CLOUDFLARE_API_TOKEN"; exit 1; }
+          test -n "$D1_READ_TOKEN" || { echo "::error::Missing protected STAGING_CLOUDFLARE_D1_READ_TOKEN (Account D1 Read, staging only)"; exit 1; }
           test "$ACCOUNT" = '961daf5c86645f2e06c6c86c6156db39' || exit 1
           test "$STAGING_URL" = 'https://staging.northstar-software-studio.pages.dev' || exit 1
           root="https://api.cloudflare.com/client/v4/accounts/$ACCOUNT"
@@ -64,7 +66,7 @@ jobs:
            const got={};
            for(const q of qs){
             const url=origin+'/d1/database/042bf88c-090e-43bd-969a-ff0f7d2feebd/query';
-            const response=await fetch(url,{method:'POST',headers:{Authorization:'Bearer '+process.env.CF_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({sql:q.sql,params:q.params}),signal:AbortSignal.timeout(16000)});
+            const response=await fetch(url,{method:'POST',headers:{Authorization:'Bearer '+process.env.D1_READ_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({sql:q.sql,params:q.params}),signal:AbortSignal.timeout(16000)});
             if(!response.ok)throw Error('Staging D1 SELECT API failed HTTP '+response.status+' (check D1 Read token scope; no credentials printed)');
             const data=await response.json();
             if(data.success!==true||!data.result?.[0]?.success)throw Error('Staging D1 SELECT rejected for '+q.label);
