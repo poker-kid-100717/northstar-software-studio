@@ -1,0 +1,63 @@
+name: Diagnose staging Cloudflare Access 302
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  access-doctor:
+    if: github.repository == 'poker-kid-100717/northstar-software-studio' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: northstar-staging
+    timeout-minutes: 5
+    steps:
+      - name: Check staging identity and admin redirect without exposing credentials
+        shell: bash
+        env:
+          STAGING_CF_ACCESS_JWT: ${{ secrets.STAGING_CF_ACCESS_JWT }}
+          STAGING_ADMIN_EMAIL: ${{ vars.STAGING_ADMIN_EMAIL }}
+          NORTHSTAR_STAGING_URL: ${{ vars.NORTHSTAR_STAGING_URL }}
+        run: |
+          python3 - <<'PY'
+          import os,json,base64,time,urllib.request,urllib.error,urllib.parse,sys
+          url=os.environ.get('NORTHSTAR_STAGING_URL','')
+          jwt=os.environ.get('STAGING_CF_ACCESS_JWT','')
+          email=os.environ.get('STAGING_ADMIN_EMAIL','')
+          errors=[]
+          if url!='https://staging.northstar-software-studio.pages.dev': errors.append('STAGING_ORIGIN_MISMATCH')
+          if not jwt: errors.append('STAGING_CF_ACCESS_JWT_MISSING')
+          if not email: errors.append('STAGING_ADMIN_EMAIL_MISSING')
+          if jwt:
+            try:
+              parts=jwt.split('.')
+              if len(parts)!=3: raise ValueError('format')
+              claims=json.loads(base64.urlsafe_b64decode(parts[1]+'='*(-len(parts[1])%4)))
+              now=time.time()
+              if not isinstance(claims.get('exp'),(int,float)) or claims['exp']<=now+60: errors.append('JWT_EXPIRED_OR_EXPIRING')
+              if isinstance(claims.get('nbf'),(int,float)) and claims['nbf']>now: errors.append('JWT_NOT_YET_VALID')
+              if claims.get('email','').lower()!=email.lower(): errors.append('JWT_OWNER_EMAIL_MISMATCH')
+              expected_aud='0fbd6f2c71eb120f37fded477fa5ebd7fdd518e2c1b4200942e2ac857c58a3ff'
+              aud=claims.get('aud',[])
+              if expected_aud not in (aud if isinstance(aud,list) else [aud]): errors.append('JWT_STAGING_AUDIENCE_MISMATCH')
+              if claims.get('iss')!='https://crimson-art-5ed6.cloudflareaccess.com': errors.append('JWT_ISSUER_MISMATCH')
+            except Exception: errors.append('JWT_MALFORMED')
+          if not errors:
+            class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,req,fp,code,msg,headers,newurl): return None
+            opener=urllib.request.build_opener(NoRedirect)
+            req=urllib.request.Request(url+'/api/admin/inquiries?limit=1',headers={'Cf-Access-Jwt-Assertion':jwt,'Accept':'application/json'})
+            try:
+              with opener.open(req,timeout=15) as response: status=response.status
+            except urllib.error.HTTPError as e: status=e.code
+            except Exception: status=0
+            if status==302: errors.append('ACCESS_LOGIN_REDIRECT_302')
+            elif status!=200: errors.append('ADMIN_HTTP_'+str(status))
+          print('::group::Staging Access diagnosis')
+          print('Staging origin verified:',url=='https://staging.northstar-software-studio.pages.dev')
+          print('Admin result:', 'PASS' if not errors else ', '.join(errors))
+          print('::endgroup::')
+          if errors:
+            print('::error title=Staging Access diagnostic failed::'+', '.join(errors))
+            print('Next: refresh the short-lived staging owner Access JWT through approved authentication if expired; if 302 persists, verify staging Access app audience, hostname, policy and JWT identity. Never paste tokens into logs.')
+            sys.exit(1)
+          print('PASS: staging admin returned HTTP 200 using protected JWT.')
+          PY
