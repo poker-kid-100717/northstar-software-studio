@@ -1,0 +1,85 @@
+name: Audit staging Stripe paid-event idempotency (read-only)
+on:
+  workflow_dispatch:
+    inputs:
+      order_id:
+        description: Synthetic staging order UUID from a completed TEST Checkout
+        type: string
+        required: true
+      stripe_event_id:
+        description: Stripe TEST event ID delivered to staging
+        type: string
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: northstar-staging-stripe-ledger-audit
+  cancel-in-progress: false
+jobs:
+  verify:
+    if: github.repository == 'poker-kid-100717/northstar-software-studio' && github.ref == 'refs/heads/main'
+    environment: northstar-staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify isolated staging D1 and read-only payment-event ledger
+        shell: bash
+        env:
+          CF_TOKEN: ${{ secrets.STAGING_CLOUDFLARE_API_TOKEN }}
+          ACCOUNT: ${{ vars.STAGING_CLOUDFLARE_ACCOUNT_ID }}
+          STAGING_URL: ${{ vars.NORTHSTAR_STAGING_URL }}
+          ORDER_ID: ${{ inputs.order_id }}
+          STRIPE_EVENT_ID: ${{ inputs.stripe_event_id }}
+        run: |
+          set -euo pipefail
+          test -n "$CF_TOKEN" || { echo "::error::Missing protected STAGING_CLOUDFLARE_API_TOKEN"; exit 1; }
+          test "$ACCOUNT" = '961daf5c86645f2e06c6c86c6156db39' || exit 1
+          test "$STAGING_URL" = 'https://staging.northstar-software-studio.pages.dev' || exit 1
+          root="https://api.cloudflare.com/client/v4/accounts/$ACCOUNT"
+          curl --silent --show-error --fail-with-body --max-time 20 \
+            -H "Authorization: Bearer $CF_TOKEN" \
+            "$root/pages/projects/northstar-software-studio" -o "$RUNNER_TEMP/pages.json"
+          node <<'NODE'
+          const fs=require('node:fs');
+          const r=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/pages.json','utf8'));
+          const prev=r.result?.deployment_configs?.preview?.d1_databases?.INQUIRIES_DB?.id;
+          const prod=r.result?.deployment_configs?.production?.d1_databases?.INQUIRIES_DB?.id;
+          if(!r.success||prev!=='042bf88c-090e-43bd-969a-ff0f7d2feebd'||!prod||prev===prod) throw Error('Preview/Production D1 not isolated');
+          console.log('PASS: staging/production D1 separation; only staging DB will be queried.');
+          NODE
+          node <<'NODE'
+          const origin='https://api.cloudflare.com/client/v4/accounts/'+process.env.ACCOUNT;
+          const order=process.env.ORDER_ID,event=process.env.STRIPE_EVENT_ID;
+          if(!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(order))throw Error('Synthetic order UUID invalid');
+          if(!/^evt_[A-Za-z0-9]+$/.test(event))throw Error('Stripe event ID invalid');
+          // These hardcoded SELECT-only SQL statements have no user-controlled SQL.
+          // The D1 REST query API uses POST for read operations; no writes are made.
+          const qs=[
+           {label:'order',sql:"SELECT status, paid_at, provider_payment_intent_id, provider_checkout_session_id FROM service_orders WHERE id = ?",params:[order]},
+           {label:'payment_transitions',sql:"SELECT COUNT(*) AS total FROM commerce_events WHERE entity_type='order' AND entity_id=? AND event_type='payment_confirmed'",params:[order]},
+           {label:'webhook_event',sql:"SELECT COUNT(*) AS total FROM payment_webhook_events WHERE provider='stripe' AND provider_event_id=? AND order_id=? AND processed_at IS NOT NULL",params:[event,order]},
+           {label:'all_order_webhooks',sql:"SELECT COUNT(*) AS total FROM payment_webhook_events WHERE provider='stripe' AND order_id=? AND processed_at IS NOT NULL",params:[order]}
+          ];
+          async function main(){
+           const got={};
+           for(const q of qs){
+            const url=origin+'/d1/database/042bf88c-090e-43bd-969a-ff0f7d2feebd/query';
+            const response=await fetch(url,{method:'POST',headers:{Authorization:'Bearer '+process.env.CF_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({sql:q.sql,params:q.params}),signal:AbortSignal.timeout(16000)});
+            if(!response.ok)throw Error('Staging D1 SELECT API failed HTTP '+response.status+' (check D1 Read token scope; no credentials printed)');
+            const data=await response.json();
+            if(data.success!==true||!data.result?.[0]?.success)throw Error('Staging D1 SELECT rejected for '+q.label);
+            const rows=data.result[0].results||[];
+            got[q.label]=rows;
+           }
+           const record=got.order[0];
+           if(!record||record.status!=='paid'||!record.paid_at||!record.provider_checkout_session_id?.startsWith('cs_test_')||!record.provider_payment_intent_id?.startsWith('pi_'))throw Error('Matching synthetic order not verified paid by Stripe TEST');
+           const transitions=got.payment_transitions[0]?.total;
+           const specific=got.webhook_event[0]?.total;
+           const events=got.all_order_webhooks[0]?.total;
+           console.log('STAGING_D1_CHECK: status=paid, transitions='+transitions+', event_processed='+specific+', processed_event_ids_for_order='+events);
+           if(transitions!==1||specific!==1||!Number.isSafeInteger(events)||events<1)throw Error('Stripe event idempotency ledger invariant failed');
+           console.log('PASS: exact staging TEST order has one paid transition and matching processed webhook event.');
+           console.log('NOTE: this is read-only ledger proof; to prove actual replay, resend the identical Stripe event via Stripe dashboard/CLI and rerun this audit, checking provider delivery attempts separately.');
+          }
+          main().catch(e=>{console.error('::error::'+e.message);process.exitCode=1;});
+          NODE
