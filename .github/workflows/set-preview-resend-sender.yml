@@ -1,0 +1,80 @@
+name: Set Preview Resend sender (protected)
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Apply staging-only sender variable after dry-run
+        required: true
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: northstar-staging-config-resend
+  cancel-in-progress: false
+jobs:
+  sender:
+    if: github.repository == 'poker-kid-100717/northstar-software-studio' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: northstar-staging
+    timeout-minutes: 5
+    steps:
+      - name: Plan / apply exact Preview sender variable
+        env:
+          CF_TOKEN: ${{ secrets.STAGING_CLOUDFLARE_API_TOKEN }}
+          ACCOUNT: ${{ vars.STAGING_CLOUDFLARE_ACCOUNT_ID }}
+          ORIGIN: ${{ vars.NORTHSTAR_STAGING_URL }}
+          APPLY: ${{ inputs.apply }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CF_TOKEN" || { echo "::error::Missing protected Cloudflare token"; exit 1; }
+          test "$ACCOUNT" = '961daf5c86645f2e06c6c86c6156db39' || exit 1
+          test "$ORIGIN" = 'https://staging.northstar-software-studio.pages.dev' || exit 1
+          uri="https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/pages/projects/northstar-software-studio"
+          curl --fail-with-body --silent --show-error --max-time 20 \
+            -H "Authorization: Bearer $CF_TOKEN" "$uri" -o "$RUNNER_TEMP/before.json"
+          node <<'NODE'
+          const fs=require('node:fs');
+          const r=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/before.json','utf8'));
+          const project=r.result, p=project?.deployment_configs?.preview, prod=project?.deployment_configs?.production;
+          const staging='042bf88c-090e-43bd-969a-ff0f7d2feebd';
+          if(r.success!==true||project.name!=='northstar-software-studio'||p?.d1_databases?.INQUIRIES_DB?.id!==staging||!prod?.d1_databases?.INQUIRIES_DB?.id||prod.d1_databases.INQUIRIES_DB.id===staging)
+            throw Error('Account/project or staging/production D1 preflight failed');
+          if(p?.env_vars?.RESEND_API_KEY?.type!=='secret_text')throw Error('Preview RESEND_API_KEY not encrypted');
+          const existing=p?.env_vars?.CONSULTATION_FROM_EMAIL?.value;
+          const wanted='Northstar <onboarding@resend.dev>';
+          if(existing && existing!==wanted)throw Error('Existing sender differs; refusing to overwrite');
+          console.log('PASS: D1 isolated, encrypted Preview Resend key present.');
+          console.log('Preview sender: '+(existing?'ALREADY_CONFIGURED':'MISSING'));
+          fs.writeFileSync(process.env.RUNNER_TEMP+'/sender-body.json',JSON.stringify({
+            deployment_configs:{preview:{env_vars:{CONSULTATION_FROM_EMAIL:{type:'plain_text',value:wanted}}}}
+          }));
+          // No output contains Cloudflare token or Resend API key.
+          NODE
+          if [[ "$APPLY" != true ]]; then echo 'DRY_RUN: no settings changed.'; exit 0; fi
+          http=$(curl --silent --show-error --max-time 30 -w '%{http_code}' \
+            -H "Authorization: Bearer $CF_TOKEN" \
+            -H 'Content-Type: application/json' -X PATCH --data-binary @"$RUNNER_TEMP/sender-body.json" \
+            "$uri" -o "$RUNNER_TEMP/patch.json")
+          if [[ "$http" != 200 ]]; then
+            echo "::error::Cloudflare Preview PATCH rejected (HTTP $http); no production changes requested."
+            exit 1
+          fi
+          curl --fail-with-body --silent --show-error --max-time 20 \
+            -H "Authorization: Bearer $CF_TOKEN" "$uri" -o "$RUNNER_TEMP/after.json"
+          node <<'NODE'
+          const fs=require('node:fs');
+          const before=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/before.json','utf8'));
+          const patch=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/patch.json','utf8'));
+          const after=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/after.json','utf8'));
+          if(!patch.success||!after.success)throw Error('Cloudflare did not confirm Preview update');
+          const bc=before.result.deployment_configs, ac=after.result.deployment_configs;
+          if(JSON.stringify(bc.production)!==JSON.stringify(ac.production))throw Error('Production configuration changed unexpectedly');
+          if(ac.preview.d1_databases?.INQUIRIES_DB?.id!=='042bf88c-090e-43bd-969a-ff0f7d2feebd')throw Error('Preview D1 drift');
+          const env=ac.preview.env_vars;
+          if(env.CONSULTATION_FROM_EMAIL?.value!=='Northstar <onboarding@resend.dev>'||env.RESEND_API_KEY?.type!=='secret_text')
+            throw Error('Preview sender read-after-write verification failed');
+          console.log('PASS: Preview sender and Resend secret configured; Production configuration unchanged.');
+          console.log('Next: deploy Preview to activate environment changes.');
+          NODE
