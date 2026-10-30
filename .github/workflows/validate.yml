@@ -45,6 +45,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify migration constraints (SQLite)
         run: python3 scripts/test-commerce-migration.py
+      - name: Verify production configuration guardrails with synthetic provider responses
+        run: node --test tests/production-control-plane.test.mjs
   backend:
     name: .NET build and tests
     runs-on: ubuntu-latest
