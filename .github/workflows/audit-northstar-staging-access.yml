@@ -53,12 +53,19 @@ jobs:
           const owner=value('CF_ACCESS_ADMIN_EMAIL');
           if(!/^[a-z0-9-]+\.cloudflareaccess\.com$/.test(domain||'')||!audience||!/^[^@]+@[^@]+\.[^@]+$/.test(owner||''))throw Error('Staging owner Access config missing');
           const host='staging.northstar-software-studio.pages.dev';
-          const relevant=(apps.result||[]).filter(a=>[a.domain,...(a.self_hosted_domains||[])].some(d=>typeof d==='string'&&d.startsWith(host+'/')));
-          console.log('Staging-path Access applications discovered: '+relevant.length);
-          const domains=relevant.flatMap(a=>[a.domain,...(a.self_hosted_domains||[])]).filter(Boolean);
-          const covers=(path)=>domains.some(d=>d===host+'/'+path||d===host+'/'+path+'*'||d===host+'/'+path+'/*');
-          // Default-deny is assumed only for paths actually covered by an Access app.
-          if(!covers('admin')||!covers('api/admin'))throw Error('Missing dedicated Access protection for both admin and api/admin paths');
+          const list=Array.isArray(apps.result)?apps.result:[];
+          const paths=(a)=>[a.domain,...(a.self_hosted_domains||[]),...(a.destinations||[]).flatMap(d=>[d?.uri,d?.domain])].filter(d=>typeof d==='string');
+          const normalized=(s)=>s.replace(/^https?:\/\//,'').replace(/\/$/,'');
+          const candidate=(a)=>paths(a).some(d=>normalized(d).startsWith(host));
+          const relevant=list.filter(candidate);
+          console.log('Access inventory total: '+list.length+'; staging-host candidates: '+relevant.length);
+          console.log('Access app field families: '+[...new Set(list.flatMap(a=>Object.keys(a).filter(k=>['domain','self_hosted_domains','destinations','policies','aud','type'].includes(k))))].sort().join(','));
+          console.log('Staging match categories: '+JSON.stringify({exactHost:relevant.filter(a=>paths(a).some(d=>normalized(d)===host)).length,hostPath:relevant.filter(a=>paths(a).some(d=>normalized(d).startsWith(host+'/'))).length}));
+          const domains=relevant.flatMap(paths).map(normalized);
+          // Never count a wildcard or unrelated hostname as coverage. A full-host app
+          // requires a separately verified webhook bypass so Stripe can POST without Access.
+          const covers=(path)=>domains.some(d=>d===host||d===host+'/'+path||d===host+'/'+path+'*'||d===host+'/'+path+'/*');
+          if(!covers('admin')||!covers('api/admin'))throw Error('Access applications do not prove protection for both staging admin and api/admin paths');
           if(!relevant.every(a=>Array.isArray(a.aud)?a.aud.includes(audience):a.aud===audience))throw Error('Access app audience mismatch');
           for(const app of relevant){
             const policies=app.policies||[];
