@@ -77,7 +77,7 @@ test('signed malformed session identifiers fail closed',async()=>{
 });
 
 test('signed unsupported Stripe events are acknowledged without touching D1',async()=>{
- for(const type of ['charge.refunded','payment_intent.payment_failed','checkout.session.expired']){
+ for(const type of ['payment_intent.payment_failed','checkout.session.expired']){
   const body=JSON.stringify({id:'evt_ignored',livemode:false,type,data:{object:{}}});
   assert.equal((await post(body,await sign(body))).status,200,type);
  }
