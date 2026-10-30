@@ -1,22 +1,35 @@
-# Production acceptance — Playwright
+# Production acceptance — read-only
 
-The initial automated live acceptance suite is **read-only**, uses Chromium, and runs after successful **Deploy storefront to Cloudflare Pages** executions or manually via Actions > **Production acceptance (read-only)**. It publishes JUnit, HTML, screenshots, and failure traces. Set optional repository variable `NORTHSTAR_ACCEPTANCE_URL` to the actual production HTTPS origin (otherwise defaults to the Pages domain). Ensure the origin is reachable from GitHub-hosted runners.
+The [Production acceptance](../.github/workflows/production-acceptance.yml) workflow runs Chromium read-only smoke tests after a successful **production** Pages deployment or from a manual dispatch. It must **never** submit an inquiry, create a quote, use Stripe or mutate D1.
 
-Coverage:
-- **1 Storefront:** HTTP, visible app shell, consultation route, uncaught browser exceptions.
-- **2 Consultation:** form availability and no accidental empty-form submission. Actual submission and D1 persistence are **not** verified.
-- **3 Admin:** anonymous inquiry API must not disclose records. Authenticated owner dashboard is **not** verified.
-- **4 Notifications:** **not yet automated**; requires a staging Resend integration and delivery reconciliation.
-- **5 Quotes:** **not yet automated**; requires staging seeded inquiries/quotes, authenticated test owner, scoped acceptance links, and cleanup.
+## What the suite checks
 
-Next phase: build a dedicated staging D1 database + Pages preview deployment, synthetic test records with cleanup, Cloudflare Access test authentication, Turnstile test configuration, and Resend test-mode verification. Only then enable state-changing end-to-end tests 2–5. Never use production customer data, real payment methods, or shared administrator credentials in CI. Don't silently mark unimplemented scenarios as passing.
+- Public storefront root and consultation route return an app shell without uncaught browser errors.
+- Consultation form renders and blocks an empty submission; **no production inquiry is sent**.
+- Anonymous `GET /api/admin/inquiries` does not reveal records (401/403, Access login redirect, or another non-disclosing response).
 
-To run locally:
-```powershell
+The separate [production smoke workflow](../.github/workflows/smoke-production-storefront.yml) checks public route reachability, the configured public Turnstile site-key response, and anonymous denial. The [D1 migration validation](d1-migration-validation.md) gate inspects production schema **read-only**, not records or payment states.
+
+## What it does **not** establish
+
+- Owner-only edge Cloudflare Access protection against a non-owner (check [owner security matrix](../web/ADMIN_SECURITY_VERIFICATION.md)).
+- Writable production D1, protected inquiry submission, or Resend delivery in Production.
+- Any production Stripe Checkout, fulfillment or refunds.
+- Merged open security/payment PRs or authorization for live charging.
+
+Synthetic state-changing tests belong **only in isolated staging**, where [Staging end-to-end acceptance](../.github/workflows/staging-e2e-acceptance.yml) and the [Resend delivery verification](../.github/workflows/verify-staging-resend-delivery.yml) are run under the protected `northstar-staging` environment.
+
+At the October 30, 2026 UTC documentation update the staging business and TEST payment workflow had passed. This is **separate** from the production release gate in [issue #111](https://github.com/poker-kid-100717/northstar-software-studio/issues/111).
+
+## Run local read-only smoke
+
+~~~bash
 cd web
 npm ci
 npx playwright install chromium
 npx playwright test --config playwright.acceptance.config.ts
-```
+~~~
 
-This workflow is a **post-deployment monitor**, not a pre-deployment gate or rollback system. It cannot certify production write paths or external delivery. Restrict GitHub Actions report access, as browser traces may contain page content.
+The Playwright acceptance config defaults to the production Pages origin unless `NORTHSTAR_ACCEPTANCE_URL` is supplied. Do **not** point tests that write synthetic records or complete payments at production URLs.
+
+Keep CI artifacts on short retention, review screenshots/traces for accidental customer data, and record GitHub Actions run links plus the tested SHA in the issue. Green smoke results do not authorize production payments or a deployment rollback.

@@ -1,33 +1,33 @@
-# P0 staging readiness and acceptance runbook
+# P0 staging acceptance — evidence and remaining gates
 
-Tracks #111 and #113. **No production changes or live Stripe charges are authorized by this runbook.**
+Tracking: [issue #111](https://github.com/poker-kid-100717/northstar-software-studio/issues/111) and [commercial launch #113](https://github.com/poker-kid-100717/northstar-software-studio/issues/113). **This is not permission to enable live Stripe charges or alter Production.**
 
-## Stage 1: establish isolated resources (required before running acceptance)
-- [ ] Confirm Cloudflare Pages Preview `INQUIRIES_DB` points to D1 `042bf88c-090e-43bd-969a-ff0f7d2feebd`; record production database ID privately and verify it differs.
-- [ ] Confirm a dedicated staging Cloudflare Access app, audience, allowed owner identity, and staging-only hostname. Never use production Access audience.
-- [ ] Review `scripts/Configure-NorthstarStaging.ps1` in default dry-run mode; apply only after identity and bindings are confirmed. It requires a scoped Pages API token, not one committed to Git.
-- [ ] Deploy staging preview branch and inspect active Preview variables without printing secrets.
-- [ ] Create protected GitHub environment `northstar-staging` with approval rules, `NORTHSTAR_STAGING_URL` variable and `STAGING_CF_ACCESS_JWT`, `STAGING_TURNSTILE_TEST_TOKEN`, `STAGING_QUOTE_TOKEN` secrets. Keep all separate from production.
+## Last documented state — October 30, 2026 UTC
 
-## Stage 2: prepare single-use synthetic test
-- [ ] Create and send an approved synthetic quote on staging D1; record its fresh 64-character hex acceptance token **only** in protected environment secrets. Acceptance can occur only once, but the token remains a sensitive read credential until expiry. Keep it protected after acceptance and seed a fresh quote/token for each rerun.
-- [ ] Use staging-only Resend configuration and a mailbox authorized to receive test mail; do not use real customer email addresses.
-- [ ] Run `.github/workflows/staging-e2e-acceptance.yml` via manual workflow dispatch. Save run URL, timestamp, commit SHA, outcome and non-sensitive failure details in #111.
-- [ ] Verify synthetic inquiry persisted and is visible to authenticated admin, quote accepted once, replay rejected with HTTP 409 and `QUOTE_CONFLICT`, and notification state durable. PR #115 adds the automated replay assertion; until it is merged, record a separate staging POST using the same token and original expectedVersion and verify that exact response.
-- [ ] Verify **actual Resend delivery** separately with provider event status and a staging mailbox receipt; a successful workflow alone is not delivery evidence.
+| Gate | State | Evidence |
+| --- | --- | --- |
+| Preview D1 isolated from Production | **PASS** | [protected Preview deployment](https://github.com/poker-kid-100717/northstar-software-studio/actions/runs/40993400497), [Resend settings preflight](https://github.com/poker-kid-100717/northstar-software-studio/actions/runs/40993180704) |
+| Staging business/quote/Stripe TEST payment workflow | **PASS** | [staging E2E](https://github.com/poker-kid-100717/northstar-software-studio/actions/runs/40993469083) |
+| Resend synthetic inquiry and independent provider delivery | **PASS** | [protected staging Resend run](https://github.com/poker-kid-100717/northstar-software-studio/actions/runs/40993539074); provider record matching inquiry reference (metadata in #111) |
+| Protected GitHub staging environment | **PASS for current workflow execution** | Staging workflows used protected `northstar-staging` secrets |
+| Dedicated edge Cloudflare Access application / exact owner-only allow policy | **BLOCKED / NOT VERIFIED** | [Access inventory audit](https://github.com/poker-kid-100717/northstar-software-studio/actions/runs/40984995283) found no application in the configured account |
+| Signed Stripe TEST duplicate webhook replay against staging D1 | **NOT VERIFIED** | [PR #156](https://github.com/poker-kid-100717/northstar-software-studio/pull/156) adds tests/hardening; do not treat open source PR as deployed |
+| Separate production read-only schema + smoke evidence | **NEEDS FINAL CLOSEOUT RECORD** | [production smoke workflow](../.github/workflows/smoke-production-storefront.yml), [production D1 validation](d1-migration-validation.md) |
 
-## Stage 3: independent production read-only checks
-- [ ] Confirm production D1 binding differs from staging and perform read-only schema validation.
-- [ ] Check production health and public pages without writing records or enabling payments.
-- [ ] Document rollback and cleanup of synthetic staging records.
+**A passing staging workflow is not the same as provider delivery or a configured Access edge application.** Resend was verified independently; Access remains the critical unresolved security gate.
 
-## Evidence / decision record
-| Check | Result | Evidence URL / date |
-|---|---|---|
-| Preview vs production D1 separation | Pending | |
-| Staging Access and environment protection | Pending | |
-| Manual E2E workflow | Pending | |
-| Resend provider delivery and mailbox receipt | Pending | |
-| Production read-only smoke | Pending | |
+## Remaining work
 
-Do not close #111 until every required row is supported by evidence. Do not label production payment-ready until Stripe replay/concurrency, refund, reconciliation, out-of-order events and test-mode checkout are validated. Explicit owner approval is required before any live charges.
+1. Review [owner Access protection matrix](../web/ADMIN_SECURITY_VERIFICATION.md). Confirm account, create/verify a dedicated **Preview-only** Access application protecting `/admin`, `/admin/*`, `/api/admin`, `/api/admin/*` for the single owner. The signed Stripe webhook endpoint **must remain reachable without edge Access login**. [Protected Access bootstrap workflow](../.github/workflows/configure-northstar-owner-access.yml) supports a dry-run and a guarded apply.
+2. Access applications have distinct JWT **audiences**. Coordinate the protected `STAGING_CF_ACCESS_JWT` identity credential and **Preview-only** `CF_ACCESS_AUD` with the new app. Do not blindly change the audience: doing so can break quote/admin tests and Turnstile staging test safety checks. Repeat negative anonymous/non-owner tests.
+3. Demonstrate a duplicate signed Stripe TEST webhook delivery against staging D1. Verify one `payment_confirmed` transition for the exact matching order and no mutation to unrelated orders. Review the unmerged [webhook hardening](https://github.com/poker-kid-100717/northstar-software-studio/pull/156), [test extraction](https://github.com/poker-kid-100717/northstar-software-studio/pull/159) and [Preview-only deployment](https://github.com/poker-kid-100717/northstar-software-studio/pull/161) before choosing a safe release path.
+4. Run/confirm independent **read-only production** D1 schema + storefront smoke. Log the exact workflow URLs and commit SHA in #111. No synthetic production records or live payment tests.
+5. Close #111 **only** after all rows above pass with evidence and any staging synthetic test data has a documented cleanup/retention approach.
+
+## Operational rules
+
+- Preview `INQUIRIES_DB`: `042bf88c-090e-43bd-969a-ff0f7d2feebd`; Production must be a different D1 database. Always re-verify at operation time.
+- Resend Preview: `RESEND_API_KEY` as an encrypted secret; `CONSULTATION_FROM_EMAIL` as Preview text. Protect notifications and never print recipient data/provider body in logs.
+- Stripe: TEST keys only; signed events set D1 payment state, not redirects. No live payment activation.
+- Staging tests require protected `NORTHSTAR_STAGING_URL`, `STAGING_CF_ACCESS_JWT`, `STAGING_TURNSTILE_TEST_TOKEN` and, for relevant quote workflows, a fresh single-use test token. Never publish secret values.
+- Don't run the production D1 migration apply or deployment as part of a staging-only documentation task.

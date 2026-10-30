@@ -1,5 +1,7 @@
 # Production API routing and deployment readiness
 
+> **Scope note (October 2026):** This is the **optional separately hosted ASP.NET Core/PostgreSQL catalog API** path. The active Northstar consultation/admin/quote/Stripe TEST backend is deployed under `web/functions` on Cloudflare Pages with D1. Do **not** use this as the main Pages Functions launch checklist; start with [README](../README.md) and [P0 staging readiness](p0-staging-readiness.md).
+
 ## Current failure
 
 Cloudflare Pages deploys only the Angular static bundle. Angular requests `/api/instant-fixes` relative to the Pages origin. The development-only Angular proxy (`web/proxy.conf.json`) is not included in the production bundle. Without a production API route, the catalog displays its unavailable message. The API requires PostgreSQL and is not deployed by the Pages workflow.

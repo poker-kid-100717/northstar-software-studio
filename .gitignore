@@ -1,13 +1,32 @@
+# .NET
 **/bin/
 **/obj/
+*.user
+
+# Angular / Node
 node_modules/
 .angular/
-playwright-report/
-test-results/
 dist/
+*.tsbuildinfo
+
+# Local Cloudflare credentials and generated state
+.wrangler/
+.dev.vars
+.dev.vars.*
 .env
 .env.*
 !.env.example
+
+# Playwright, JUnit, and local test artifacts
+playwright-report/
+test-results/
+staging-report/
+acceptance-report/
+staging-results.xml
+acceptance-results.xml
+coverage/
+*.trx
+
+# Local private files
 appsettings.Development.json
-*.user
 uploads/
