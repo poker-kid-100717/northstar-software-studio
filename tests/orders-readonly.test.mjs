@@ -26,7 +26,7 @@ beforeEach(()=>{
  const sql=db.db;
  const inquiry='10000000-0000-4000-8000-000000000001';
  sql.prepare('INSERT INTO consultation_inquiries(id,contact_name,contact_email,project_type,description,budget,timeline) VALUES (?,?,?,?,?,?,?)')
-  .run(inquiry,'Synthetic','synthetic@example.test','other','Synthetic test inquiry.','unsure','flexible');
+  .run(inquiry,'Synthetic','synthetic@example.test','other','Synthetic test inquiry for protected order queue regression.','unsure','flexible');
  const q=sql.prepare("INSERT INTO service_quotes(id,inquiry_id,service_name,deliverables,amount_cents,status,approved_at,approved_by,expires_at,accepted_at) VALUES (?,?,?,?,9900,'accepted',datetime('now'),'owner',datetime('now','+7 days'),datetime('now'))");
  q.run('20000000-0000-4000-8000-000000000002',inquiry,'Synthetic repair','Test deliverables');
  q.run('30000000-0000-4000-8000-000000000003',inquiry,'Synthetic workflow','Test deliverables');
