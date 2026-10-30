@@ -107,6 +107,6 @@ jobs:
       - name: Pages Functions type check
         run: npx tsc -p tsconfig.functions.json
       - name: Inquiry reliability and security tests
-        run: node --test ../tests/inquiries.test.mjs
+        run: node --test ../tests/inquiries.test.mjs ../tests/orders-readonly.test.mjs
       - name: Production build
         run: npm run build -- --configuration production
