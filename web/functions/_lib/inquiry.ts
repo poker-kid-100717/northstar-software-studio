@@ -10,6 +10,8 @@ export interface Env {
   INQUIRIES_DB?: Database; RESEND_API_KEY?: string; CONSULTATION_FROM_EMAIL?: string;
   CONSULTATION_NOTIFY_EMAIL?: string; TURNSTILE_SITE_KEY?: string; TURNSTILE_SECRET_KEY?: string;
   CF_ACCESS_TEAM_DOMAIN?: string; CF_ACCESS_AUD?: string; CF_ACCESS_ADMIN_EMAIL?: string;
+  NORTHSTAR_ENVIRONMENT?: string; CF_ACCESS_SERVICE_AUTH_ENABLED?: string;
+  CF_ACCESS_SERVICE_AUD?: string; CF_ACCESS_SERVICE_CLIENT_ID?: string;
 }
 export const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
 export const json = (data: object, status = 200) => Response.json(data, { status, headers });
