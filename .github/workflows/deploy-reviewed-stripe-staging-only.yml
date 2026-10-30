@@ -1,0 +1,59 @@
+name: Deploy reviewed Stripe webhook fix to staging ONLY
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: northstar-pages-staging-preview
+  cancel-in-progress: false
+jobs:
+  deploy-staging-reviewed-stripe:
+    if: github.repository == 'poker-kid-100717/northstar-software-studio' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: northstar-staging
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: 60172cbcb391e00c4f84434a4077b3c55e928286
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Verify isolated Preview D1 and tested source revision
+        env:
+          CF_TOKEN: ${{ secrets.STAGING_CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ vars.STAGING_CLOUDFLARE_ACCOUNT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 60172cbcb391e00c4f84434a4077b3c55e928286 || exit 1
+          test -n "$CF_TOKEN" && test "$CF_ACCOUNT" = 961daf5c86645f2e06c6c86c6156db39 || exit 1
+          curl -fsS --max-time 20 -H "Authorization: Bearer $CF_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/pages/projects/northstar-software-studio" -o "$RUNNER_TEMP/pages.json"
+          node <<'NODE'
+          const r=JSON.parse(require('node:fs').readFileSync(process.env.RUNNER_TEMP+'/pages.json','utf8'));
+          const p=r.result?.deployment_configs?.preview?.d1_databases?.INQUIRIES_DB?.id;
+          const d=r.result?.deployment_configs?.production?.d1_databases?.INQUIRIES_DB?.id;
+          if(!r.success||p!=='042bf88c-090e-43bd-969a-ff0f7d2feebd'||!d||d===p)throw Error('Unsafe Preview/Production D1 binding');
+          console.log('PASS staging D1 isolation; pinned reviewed source commit only.');
+          NODE
+      - name: Build and verify Pages functions on pinned source
+        working-directory: web
+        run: |
+          npm ci --no-audit --no-fund
+          npx tsc -p tsconfig.functions.json
+          node --test ../tests/inquiries.test.mjs ../tests/stripe-webhook.test.mjs
+          npm run build -- --configuration production
+          test -s dist/northstar/browser/index.html
+      - name: Deploy to Cloudflare Preview ONLY
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.STAGING_CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.STAGING_CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: web
+          command: pages deploy dist/northstar/browser --project-name=northstar-software-studio --branch=staging
+      - name: Deployment summary
+        run: echo "Staging Preview only; pinned reviewed Stripe revision 60172cb; no production deploy performed."
