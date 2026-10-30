@@ -6,12 +6,27 @@ function decode64(input: string): Uint8Array<ArrayBuffer> {
   const bytes = atob(b64.padEnd(Math.ceil(b64.length / 4) * 4, '='));
   return Uint8Array.from(bytes, c => c.charCodeAt(0));
 }
+// A human owner token still authorizes the full admin surface. A CI service token
+// only authorizes the four synthetic business-acceptance operations below.
 const requestAuthorizations = new WeakMap<Request, { env: Env; result: Promise<Response | null> }>();
+const actors = new WeakMap<Request, string>();
+const STAGING_ORIGIN = 'https://staging.northstar-software-studio.pages.dev';
+function serviceRouteAllowed(request: Request): boolean {
+  const url = new URL(request.url);
+  if (url.origin !== STAGING_ORIGIN) return false;
+  if (request.method === 'GET') return url.pathname === '/api/admin/inquiries';
+  if (request.method !== 'POST') return false;
+  return url.pathname === '/api/admin/quotes' ||
+    /^\/api\/admin\/quotes\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(?:approve|share)$/i.test(url.pathname);
+}
+export function authorizedActor(request: Request, env: Env): string {
+  return actors.get(request) ?? env.CF_ACCESS_ADMIN_EMAIL ?? 'unknown';
+}
 export function authorize(request: Request, env: Env): Promise<Response | null> {
   const cached = requestAuthorizations.get(request);
   if (cached?.env === env) return cached.result;
-  const result = authorizeUncached(request,env);
-  requestAuthorizations.set(request,{env,result});
+  const result = authorizeUncached(request, env);
+  requestAuthorizations.set(request, { env, result });
   return result;
 }
 async function authorizeUncached(request: Request, env: Env): Promise<Response | null> {
@@ -25,12 +40,25 @@ async function authorizeUncached(request: Request, env: Env): Promise<Response |
     const parts = token.split('.');
     if (parts.length !== 3) return deny(401);
     const header = JSON.parse(new TextDecoder().decode(decode64(parts[0]))) as { alg?: string; kid?: string };
-    const claims = JSON.parse(new TextDecoder().decode(decode64(parts[1]))) as { iss?: string; aud?: string[] | string; exp?: number; nbf?: number; email?: string };
-    if (header.alg !== 'RS256' || !header.kid || typeof claims.exp !== 'number' || !Number.isFinite(claims.exp) || claims.exp <= Date.now()/1000 ||
+    const claims = JSON.parse(new TextDecoder().decode(decode64(parts[1]))) as {
+      iss?: string; aud?: string[] | string; exp?: number; nbf?: number; email?: string;
+      common_name?: string; type?: string; sub?: string;
+    };
+    const isService = claims.type === 'app' && claims.sub === '' && typeof claims.common_name === 'string';
+    const serviceEnabled = isService && env.NORTHSTAR_ENVIRONMENT === 'staging' &&
+      env.CF_ACCESS_SERVICE_AUTH_ENABLED === 'true' &&
+      !!env.CF_ACCESS_SERVICE_AUD && !!env.CF_ACCESS_SERVICE_CLIENT_ID &&
+      claims.common_name === env.CF_ACCESS_SERVICE_CLIENT_ID &&
+      claims.email === undefined && serviceRouteAllowed(request);
+    const ownerEnabled = !isService && claims.common_name === undefined &&
+      claims.email?.toLowerCase() === env.CF_ACCESS_ADMIN_EMAIL.toLowerCase();
+    const expectedAudience = isService ? env.CF_ACCESS_SERVICE_AUD : env.CF_ACCESS_AUD;
+    if (header.alg !== 'RS256' || !header.kid || typeof claims.exp !== 'number' ||
+        !Number.isFinite(claims.exp) || claims.exp <= Date.now()/1000 ||
         (claims.nbf !== undefined && (typeof claims.nbf !== 'number' || !Number.isFinite(claims.nbf) || claims.nbf > Date.now()/1000)) ||
         claims.iss !== 'https://' + domain ||
-        !(Array.isArray(claims.aud) ? claims.aud.includes(env.CF_ACCESS_AUD) : claims.aud === env.CF_ACCESS_AUD) ||
-        claims.email?.toLowerCase() !== env.CF_ACCESS_ADMIN_EMAIL.toLowerCase()) return deny(403);
+        !expectedAudience || !(Array.isArray(claims.aud) ? claims.aud.includes(expectedAudience) : claims.aud === expectedAudience) ||
+        (!serviceEnabled && !ownerEnabled)) return deny(403);
     const response = await fetch('https://' + domain + '/cdn-cgi/access/certs', { signal: AbortSignal.timeout(5000) });
     if (!response.ok) return deny(503);
     const keys = await response.json() as { keys?: Array<JsonWebKey & { kid?: string }> };
@@ -39,6 +67,7 @@ async function authorizeUncached(request: Request, env: Env): Promise<Response |
     const key = await crypto.subtle.importKey('jwk', jwk, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']);
     const data = new TextEncoder().encode(parts[0] + '.' + parts[1]);
     if (!await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, decode64(parts[2]), data)) return deny(403);
+    actors.set(request, isService ? 'service:northstar-staging-e2e' : claims.email!);
     return null;
   } catch { return deny(403); }
 }
