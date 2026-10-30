@@ -140,7 +140,7 @@ test('signed Stripe TEST webhook changes only the matching order once, and dupli
   assert.equal((await post(first,await sign(first),{INQUIRIES_DB:d1})).status,200);
   const getOrder=id=>sqlite.prepare('SELECT status,provider_payment_intent_id FROM service_orders WHERE id=?').get(id);
   const count=table=>sqlite.prepare('SELECT count(*) AS total FROM '+table).get().total;
-  assert.deepEqual(getOrder('order-a'),{status:'paid',provider_payment_intent_id:'pi_test_orderA'});
+  assert.deepEqual({...getOrder('order-a')},{status:'paid',provider_payment_intent_id:'pi_test_orderA'});
   assert.equal(getOrder('order-b').status,'awaiting_payment');
   assert.equal(count('commerce_events'),1);
   assert.equal(count('payment_webhook_events'),1);
