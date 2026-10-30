@@ -106,7 +106,7 @@ jobs:
         run: cd .. && node scripts/check-catalog-parity.mjs
       - name: Pages Functions type check
         run: npx tsc -p tsconfig.functions.json
-      - name: Inquiry reliability and security tests
-        run: node --test ../tests/inquiries.test.mjs
+      - name: Inquiry and Stripe webhook security/idempotency tests
+        run: node --test ../tests/inquiries.test.mjs ../tests/stripe-webhook.test.mjs
       - name: Production build
         run: npm run build -- --configuration production
