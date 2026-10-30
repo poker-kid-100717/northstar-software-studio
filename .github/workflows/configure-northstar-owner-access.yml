@@ -1,0 +1,74 @@
+name: Configure staging owner Access (protected)
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Create staging-only owner admin Access application
+        type: boolean
+        required: true
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: northstar-staging-access-bootstrap
+  cancel-in-progress: false
+jobs:
+  staging-access:
+    if: github.repository == 'poker-kid-100717/northstar-software-studio' && github.ref == 'refs/heads/main'
+    environment: northstar-staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Inventory and plan; apply only when explicitly requested
+        env:
+          CF_TOKEN: ${{ secrets.STAGING_CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ vars.STAGING_CLOUDFLARE_ACCOUNT_ID }}
+          STAGING_URL: ${{ vars.NORTHSTAR_STAGING_URL }}
+          APPLY: ${{ inputs.apply }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CF_TOKEN" || { echo "::error::Missing STAGING_CLOUDFLARE_API_TOKEN"; exit 1; }
+          test "$CF_ACCOUNT" = 961daf5c86645f2e06c6c86c6156db39 || exit 1
+          test "$STAGING_URL" = https://staging.northstar-software-studio.pages.dev || exit 1
+          root="https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT"
+          curl -fsS --max-time 20 -H "Authorization: Bearer $CF_TOKEN" "$root/pages/projects/northstar-software-studio" -o "$RUNNER_TEMP/pages.json"
+          curl -fsS --max-time 20 -H "Authorization: Bearer $CF_TOKEN" "$root/access/apps?per_page=100" -o "$RUNNER_TEMP/apps.json"
+          node <<'NODE'
+          const fs=require('node:fs');
+          const pages=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/pages.json','utf8'));
+          const apps=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/apps.json','utf8'));
+          if(!pages.success||!apps.success||!Array.isArray(apps.result))throw Error('Cloudflare lookup failed');
+          const p=pages.result.deployment_configs?.preview;
+          const prod=pages.result.deployment_configs?.production;
+          const staging='042bf88c-090e-43bd-969a-ff0f7d2feebd';
+          if(p?.d1_databases?.INQUIRIES_DB?.id!==staging||!prod?.d1_databases?.INQUIRIES_DB?.id||prod.d1_databases.INQUIRIES_DB.id===staging)throw Error('D1 binding isolation failed');
+          const v=k=>p?.env_vars?.[k]?.value;
+          const email=v('CF_ACCESS_ADMIN_EMAIL'), team=v('CF_ACCESS_TEAM_DOMAIN'), oldAudience=v('CF_ACCESS_AUD');
+          if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email||'')||!/^[a-z0-9-]+\.cloudflareaccess\.com$/.test(team||'')||!oldAudience)throw Error('Preview owner/team/AUD missing');
+          const host='staging.northstar-software-studio.pages.dev';
+          const paths=[host+'/admin',host+'/admin/*',host+'/api/admin',host+'/api/admin/*'];
+          const owned=apps.result.filter(a=>a.name==='Northstar Staging Owner Admin');
+          if(owned.length>1)throw Error('Multiple matching apps');
+          if(owned.length)throw Error('Existing app found: audit it first; no automatic overwrites');
+          const body={name:'Northstar Staging Owner Admin',type:'self_hosted',domain:paths[0],destinations:paths.map(uri=>({type:'public',uri})),session_duration:'12h',app_launcher_visible:false,policies:[{name:'Northstar staging owner only',decision:'allow',include:[{email:{email}}]}]};
+          fs.writeFileSync(process.env.RUNNER_TEMP+'/app-proposal.json',JSON.stringify(body));
+          console.log('PASS: Preview/Production D1 isolated, protected exact-owner identity configured.');
+          console.log('PLAN: one Access app with four staging admin paths, exact email allow; webhook excluded.');
+          console.log('CAUTION: new app has unique audience; refresh Preview-only CF_ACCESS_AUD and protected STAGING_CF_ACCESS_JWT before staging acceptance.');
+          NODE
+          if [[ "$APPLY" != "true" ]]; then echo "DRY_RUN: no changes applied."; exit 0; fi
+          status=$(curl -sS --max-time 30 -w '%{http_code}' \
+            -H "Authorization: Bearer $CF_TOKEN" -H "Content-Type: application/json" \
+            -X POST "$root/access/apps" --data-binary @"$RUNNER_TEMP/app-proposal.json" \
+            -o "$RUNNER_TEMP/created.json")
+          if [[ "$status" != 200 && "$status" != 201 ]]; then
+            if [[ "$status" = 403 ]]; then echo "::error::Cloudflare token lacks Access: Apps and Policies Write"; else echo "::error::Cloudflare Access POST rejected staging app (HTTP $status)"; fi
+            exit 1
+          fi
+          node <<'NODE'
+          const r=JSON.parse(require('node:fs').readFileSync(process.env.RUNNER_TEMP+'/created.json','utf8'));
+          if(!r.success||!r.result?.id||!r.result?.aud?.length)throw Error('Create not verified');
+          console.log('CREATED staging-only Access app '+r.result.id);
+          console.log('AUD needs Preview-only config and protected staging owner JWT refresh; no production changes.');
+          NODE
