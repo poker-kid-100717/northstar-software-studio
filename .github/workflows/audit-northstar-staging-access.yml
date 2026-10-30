@@ -1,0 +1,76 @@
+name: Audit Northstar staging Access (read-only)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: northstar-staging-access-audit
+  cancel-in-progress: false
+jobs:
+  access-audit:
+    if: github.repository == 'poker-kid-100717/northstar-software-studio' && github.ref == 'refs/heads/main'
+    environment: northstar-staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify Pages Preview D1 separation and owner Access identity restrictions
+        shell: bash
+        env:
+          CF_TOKEN: ${{ secrets.STAGING_CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ vars.STAGING_CLOUDFLARE_ACCOUNT_ID }}
+          STAGING_URL: ${{ vars.NORTHSTAR_STAGING_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$CF_TOKEN" || { echo "::error::Missing protected STAGING_CLOUDFLARE_API_TOKEN"; exit 1; }
+          test "$CF_ACCOUNT" = '961daf5c86645f2e06c6c86c6156db39' || { echo "::error::Wrong account"; exit 1; }
+          test "$STAGING_URL" = 'https://staging.northstar-software-studio.pages.dev' || { echo "::error::Wrong staging hostname"; exit 1; }
+          root="https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT"
+          curl --fail --silent --show-error --max-time 20 \
+            -H "Authorization: Bearer $CF_TOKEN" \
+            "$root/pages/projects/northstar-software-studio" -o "$RUNNER_TEMP/pages.json"
+          status=$(curl --silent --show-error --max-time 20 -w '%{http_code}' \
+            -H "Authorization: Bearer $CF_TOKEN" \
+            "$root/access/apps?per_page=100" -o "$RUNNER_TEMP/apps.json")
+          if [[ "$status" != "200" ]]; then
+            echo "::error::Cloudflare Access app inventory requires Access: Apps and Policies Read permission (HTTP $status)."
+            exit 1
+          fi
+          node <<'NODE'
+          const fs=require('node:fs');
+          const pages=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/pages.json','utf8'));
+          const apps=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/apps.json','utf8'));
+          if(pages.success!==true||apps.success!==true)throw Error('Cloudflare inventory not successful');
+          const preview=pages.result?.deployment_configs?.preview;
+          const production=pages.result?.deployment_configs?.production;
+          const staging='042bf88c-090e-43bd-969a-ff0f7d2feebd';
+          const stagingBinding=preview?.d1_databases?.INQUIRIES_DB?.id;
+          const prodBinding=production?.d1_databases?.INQUIRIES_DB?.id;
+          if(stagingBinding!==staging||!prodBinding||prodBinding===staging)throw Error('Preview/Production D1 not isolated');
+          console.log('PASS: Preview/Production D1 database binding isolation');
+          const value=(k)=>preview?.env_vars?.[k]?.value;
+          const domain=value('CF_ACCESS_TEAM_DOMAIN');
+          const audience=value('CF_ACCESS_AUD');
+          const owner=value('CF_ACCESS_ADMIN_EMAIL');
+          if(!/^[a-z0-9-]+\.cloudflareaccess\.com$/.test(domain||'')||!audience||!/^[^@]+@[^@]+\.[^@]+$/.test(owner||''))throw Error('Staging owner Access config missing');
+          const host='staging.northstar-software-studio.pages.dev';
+          const relevant=(apps.result||[]).filter(a=>[a.domain,...(a.self_hosted_domains||[])].some(d=>typeof d==='string'&&d.startsWith(host+'/')));
+          console.log('Staging-path Access applications discovered: '+relevant.length);
+          const domains=relevant.flatMap(a=>[a.domain,...(a.self_hosted_domains||[])]).filter(Boolean);
+          const covers=(path)=>domains.some(d=>d===host+'/'+path||d===host+'/'+path+'*'||d===host+'/'+path+'/*');
+          // Default-deny is assumed only for paths actually covered by an Access app.
+          if(!covers('admin')||!covers('api/admin'))throw Error('Missing dedicated Access protection for both admin and api/admin paths');
+          if(!relevant.every(a=>Array.isArray(a.aud)?a.aud.includes(audience):a.aud===audience))throw Error('Access app audience mismatch');
+          for(const app of relevant){
+            const policies=app.policies||[];
+            if(!policies.length)throw Error('Staging Access application has no policies');
+            for(const policy of policies){
+              if(policy.decision==='bypass')throw Error('Staging admin Access bypass policy exists');
+              if(policy.decision!=='allow')continue;
+              const includes=policy.include||[];
+              if(!includes.length)throw Error('Allow policy has no include selector');
+              if(includes.some(x=>!x.email||typeof x.email.email!=='string'||x.email.email.toLowerCase()!==owner.toLowerCase()))
+                throw Error('Access allow policy permits more than the single configured owner');
+            }
+          }
+          console.log('PASS: dedicated staging paths, audience and exact owner allow policy (identity not printed)');
+          NODE
