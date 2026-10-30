@@ -98,3 +98,63 @@ test('signed checkout events with invalid payment details cannot touch D1',async
   assert.equal((await post(body,await sign(body))).status,400,'invalid checkout case '+i);
  }
 });
+
+
+test('signed Stripe TEST webhook changes only the matching order once, and duplicate deliveries are idempotent',async()=>{
+ const {DatabaseSync}=await import('node:sqlite');
+ const sqlite=new DatabaseSync(':memory:');
+ try{
+  sqlite.exec([
+   'CREATE TABLE service_orders(id TEXT PRIMARY KEY,status TEXT NOT NULL,amount_cents INTEGER NOT NULL,currency TEXT NOT NULL,provider_checkout_session_id TEXT NOT NULL,provider_payment_intent_id TEXT,payment_provider TEXT,paid_at TEXT,updated_at TEXT)',
+   'CREATE TABLE payment_webhook_events(provider TEXT NOT NULL,provider_event_id TEXT NOT NULL,event_type TEXT NOT NULL,order_id TEXT NOT NULL,processed_at TEXT,PRIMARY KEY(provider,provider_event_id))',
+   'CREATE TABLE commerce_events(id TEXT PRIMARY KEY,entity_type TEXT,entity_id TEXT,event_type TEXT,old_status TEXT,new_status TEXT,actor TEXT,details_json TEXT)'
+  ].join(';')+';');
+  const insert=sqlite.prepare("INSERT INTO service_orders(id,status,amount_cents,currency,provider_checkout_session_id) VALUES(?,'awaiting_payment',9900,'usd',?)");
+  insert.run('order-a','cs_test_orderA');
+  insert.run('order-b','cs_test_orderB');
+  // Mirror D1's prepare/bind/first and transactional batch APIs over a real SQLite engine.
+  const d1={
+   prepare(sql){return{bind(...args){
+    const stmt=sqlite.prepare(sql);
+    const execute=()=>({meta:{changes:stmt.run(...args).changes}});
+    return {first:async()=>stmt.get(...args)??null,run:async()=>execute(),execute};
+   }};},
+   async batch(statements){
+    sqlite.exec('BEGIN');
+    try{
+     const results=statements.map(statement=>statement.execute());
+     sqlite.exec('COMMIT');
+     return results;
+    }catch(e){sqlite.exec('ROLLBACK');throw e;}
+   }
+  };
+  const session={
+   id:'cs_test_orderA',livemode:false,payment_status:'paid',amount_total:9900,
+   currency:'usd',payment_intent:'pi_test_orderA',
+   client_reference_id:'order-a',metadata:{order_id:'order-a'}
+  };
+  const event=(id,object=session)=>JSON.stringify({
+   id,livemode:false,type:'checkout.session.completed',data:{object}
+  });
+  const first=event('evt_paid_first');
+  assert.equal((await post(first,await sign(first),{INQUIRIES_DB:d1})).status,200);
+  const getOrder=id=>sqlite.prepare('SELECT status,provider_payment_intent_id FROM service_orders WHERE id=?').get(id);
+  const count=table=>sqlite.prepare('SELECT count(*) AS total FROM '+table).get().total;
+  assert.deepEqual({...getOrder('order-a')},{status:'paid',provider_payment_intent_id:'pi_test_orderA'});
+  assert.equal(getOrder('order-b').status,'awaiting_payment');
+  assert.equal(count('commerce_events'),1);
+  assert.equal(count('payment_webhook_events'),1);
+  assert.ok(sqlite.prepare('SELECT processed_at FROM payment_webhook_events WHERE provider_event_id=?').get('evt_paid_first').processed_at);
+  // Stripe retries the identical event, then delivers a distinct event for the same paid session.
+  assert.equal((await post(first,await sign(first),{INQUIRIES_DB:d1})).status,200);
+  const second=event('evt_paid_again');
+  assert.equal((await post(second,await sign(second),{INQUIRIES_DB:d1})).status,200);
+  assert.equal(count('commerce_events'),1,'only one payment_confirmed transition');
+  assert.equal(count('payment_webhook_events'),2,'distinct delivery IDs are recorded once');
+  assert.equal(getOrder('order-b').status,'awaiting_payment');
+  const mismatched=event('evt_mismatch',{...session,amount_total:1234});
+  assert.equal((await post(mismatched,await sign(mismatched),{INQUIRIES_DB:d1})).status,400);
+  assert.equal(count('commerce_events'),1);
+  assert.equal(count('payment_webhook_events'),2);
+ }finally{sqlite.close();}
+});
