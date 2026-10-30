@@ -43,6 +43,8 @@ async function processFullRefund(event:Event,db:DB):Promise<Response> {
   if(!order || order.currency!=='usd' || order.amount_cents!==charge.amount ||
      order.provider_payment_intent_id!==charge.payment_intent) return response(409);
   if(order.status!=='refunded' && !['paid','in_progress','delivered','revision','completed'].includes(order.status)) return response(409);
+  // A verified duplicate full-refund notification must never create a second audit.
+  if(order.status==='refunded')return response(200);
   const results=await db.batch([
    db.prepare("INSERT OR IGNORE INTO payment_webhook_events(provider,provider_event_id,event_type,order_id) VALUES('stripe',?,?,?)").bind(event.id,event.type,order.id),
    db.prepare("UPDATE service_orders SET status='refunded',updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=? AND status=? AND provider_payment_intent_id=? AND EXISTS(SELECT 1 FROM payment_webhook_events WHERE provider='stripe' AND provider_event_id=? AND processed_at IS NULL)")
