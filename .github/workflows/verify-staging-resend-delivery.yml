@@ -1,0 +1,74 @@
+name: Verify staging Resend mail receipt (protected)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: northstar-staging-resend-acceptance
+  cancel-in-progress: false
+jobs:
+  resend-acceptance:
+    if: github.repository == 'poker-kid-100717/northstar-software-studio' && github.ref == 'refs/heads/main'
+    environment: northstar-staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Preview email config and synthetic inquiry delivery
+        env:
+          CF_TOKEN: ${{ secrets.STAGING_CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ vars.STAGING_CLOUDFLARE_ACCOUNT_ID }}
+          STAGING_URL: ${{ vars.NORTHSTAR_STAGING_URL }}
+          ACCESS_JWT: ${{ secrets.STAGING_CF_ACCESS_JWT }}
+          TURNSTILE_TEST_TOKEN: ${{ secrets.STAGING_TURNSTILE_TEST_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CF_TOKEN" && test -n "$ACCESS_JWT" && test -n "$TURNSTILE_TEST_TOKEN" || { echo "::error::Protected staging credential missing"; exit 1; }
+          test "$CF_ACCOUNT" = 961daf5c86645f2e06c6c86c6156db39 || exit 1
+          test "$STAGING_URL" = https://staging.northstar-software-studio.pages.dev || exit 1
+          curl -fsS --max-time 20 -H "Authorization: Bearer $CF_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/pages/projects/northstar-software-studio" -o "$RUNNER_TEMP/pages.json"
+          node <<'NODE'
+          const fs=require('node:fs');
+          const r=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/pages.json','utf8'));
+          if(!r.success)throw Error('Could not inspect Pages');
+          const p=r.result?.deployment_configs?.preview;
+          const prod=r.result?.deployment_configs?.production;
+          const staging='042bf88c-090e-43bd-969a-ff0f7d2feebd';
+          if(p?.d1_databases?.INQUIRIES_DB?.id!==staging||!prod?.d1_databases?.INQUIRIES_DB?.id||prod.d1_databases.INQUIRIES_DB.id===staging)throw Error('D1 isolation failed');
+          for(const key of ['RESEND_API_KEY','CONSULTATION_FROM_EMAIL']){
+            const v=p?.env_vars?.[key];
+            console.log('Preview '+key+': '+(v?'PRESENT':'MISSING')+'; type '+(v?.type||'MISSING'));
+            if(!v)throw Error('Required Preview setting '+key+' absent');
+          }
+          console.log('Preview CONSULTATION_NOTIFY_EMAIL: '+(p.env_vars.CONSULTATION_NOTIFY_EMAIL?'CONFIGURED':'DEFAULT'));
+          NODE
+          node <<'NODE'
+          const {randomUUID}=require('node:crypto');
+          const origin=process.env.STAGING_URL;
+          const id=randomUUID(),contact='northstar-e2e-'+id+'@example.test';
+          async function run(){
+            const r=await fetch(origin+'/api/consultation-inquiries',{
+              method:'POST',
+              headers:{Origin:origin,'Content-Type':'application/json','Idempotency-Key':id},
+              body:JSON.stringify({name:'Northstar staged Resend acceptance',email:contact,
+                projectType:'application',description:'Synthetic protected staging provider delivery verification; no customer information.',
+                budget:'unsure',timeline:'flexible',selectedService:'Staging verification',
+                turnstileToken:process.env.TURNSTILE_TEST_TOKEN})
+            });
+            const body=await r.json().catch(()=>({}));
+            if(r.status!==200||!body.reference)throw Error('Staging synthetic inquiry API rejected: HTTP '+r.status);
+            const admin=await fetch(origin+'/api/admin/inquiries?q='+encodeURIComponent(id),{
+              headers:{'Cf-Access-Jwt-Assertion':process.env.ACCESS_JWT},redirect:'manual'
+            });
+            if(admin.status!==200)throw Error('Staging owner inquiry readback rejected: HTTP '+admin.status);
+            const doc=await admin.json();
+            const row=doc.inquiries?.find(x=>x.id===body.reference);
+            if(!row)throw Error('Synthetic inquiry not returned by owner API');
+            console.log('Synthetic inquiry reference: '+body.reference);
+            console.log('Resend queue state: '+row.notification_status);
+            if(row.notification_status!=='sent')throw Error('Resend did not acknowledge staging synthetic notification; provider/email delivery NOT proven');
+            console.log('RESEND_ACKNOWLEDGED: search provider delivery event and recipient mailbox for reference to establish delivered state.');
+          }
+          run().catch(e=>{console.error('::error::'+e.message);process.exitCode=1});
+          NODE
