@@ -1,5 +1,7 @@
 # Instant Fixes — MVP acceptance criteria
 
+> **Specification, not a complete implementation claim:** This is the broader Instant Fixes catalog/order/fulfillment target. The storefront currently displays fixed-scope service options, while production-ready payments, delivery and refund workflows have additional launch gates. See [README](../README.md) and [#113](https://github.com/poker-kid-100717/northstar-software-studio/issues/113).
+
 ## Product catalog
 $30: SQL Query Syntax Fix; JSON / CSV Formatting Repair; Regex or Validation Fix; C# Compilation Error Fix; API Request Formatting Fix.
 
