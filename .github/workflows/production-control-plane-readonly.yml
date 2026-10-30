@@ -1,0 +1,29 @@
+name: Northstar production control-plane preflight (read-only)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: northstar-readonly-production-control-plane
+  cancel-in-progress: false
+jobs:
+  inspect:
+    if: github.repository == 'poker-kid-100717/northstar-software-studio' && github.ref == 'refs/heads/main'
+    environment: northstar-staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate provider inspection guards without credentials
+        run: node --test tests/production-control-plane.test.mjs
+      - name: Inspect authenticated Pages configuration without changing anything
+        env:
+          NORTHSTAR_STAGING_URL: ${{ vars.NORTHSTAR_STAGING_URL }}
+          STAGING_CLOUDFLARE_ACCOUNT_ID: ${{ vars.STAGING_CLOUDFLARE_ACCOUNT_ID }}
+          STAGING_CLOUDFLARE_API_TOKEN: ${{ secrets.STAGING_CLOUDFLARE_API_TOKEN }}
+        run: node scripts/check-production-control-plane.mjs
