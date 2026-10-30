@@ -14,9 +14,11 @@ export const onRequestGet: PagesFunction<Env> = async ({request,env}) => {
  if(denied)return denied;
  const url=new URL(request.url);
  // Only documented filters. This endpoint never accepts arbitrary SQL fragments.
- for(const key of url.searchParams.keys())
-  if(!['status','limit','offset'].includes(key) || url.searchParams.getAll(key).length!==1)
-   return respond({error:'INVALID_QUERY'},400);
+ let invalidQuery=false;
+ url.searchParams.forEach((_,key)=>{
+  if(!['status','limit','offset'].includes(key) || url.searchParams.getAll(key).length!==1)invalidQuery=true;
+ });
+ if(invalidQuery)return respond({error:'INVALID_QUERY'},400);
  const status=url.searchParams.get('status') ?? 'all';
  if(!statuses.has(status))return respond({error:'INVALID_STATUS'},400);
  const limitText=url.searchParams.get('limit') ?? '25';
