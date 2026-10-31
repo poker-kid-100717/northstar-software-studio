@@ -20,6 +20,44 @@ async function verify(body:string,header:string,secret:string):Promise<boolean>{
   return mismatch===0;
  });
 }
+
+// Full TEST-mode refunds must originate from a verified Stripe charge event.
+// Partial refunds remain unfulfilled operations requiring a separate accounting
+// model and manual review; never incorrectly mark them as complete refunds.
+interface RefundCharge {
+ id?:string;livemode?:boolean;payment_intent?:string;amount?:number;
+ amount_refunded?:number;refunded?:boolean;currency?:string;
+}
+async function processFullRefund(event:Event,db:DB):Promise<Response> {
+ const charge=event.data?.object as RefundCharge|undefined;
+ if(!charge || typeof charge.id!=='string' || !/^ch_[A-Za-z0-9_]+$/.test(charge.id) ||
+    charge.livemode!==false || typeof charge.payment_intent!=='string' ||
+    !/^pi_[A-Za-z0-9_]+$/.test(charge.payment_intent) ||
+    charge.currency!=='usd' || !Number.isSafeInteger(charge.amount) || (charge.amount??0)<1 ||
+    !Number.isSafeInteger(charge.amount_refunded) || (charge.amount_refunded??0)<0 ||
+    (charge.amount_refunded??0)>(charge.amount??0)) return response(400);
+ // Do not silently acknowledge a partial refund or convert it into "refunded".
+ if(charge.refunded!==true || charge.amount_refunded!==charge.amount) return response(409);
+ try {
+  const order=await db.prepare('SELECT id,status,amount_cents,currency,provider_checkout_session_id,provider_payment_intent_id FROM service_orders WHERE provider_payment_intent_id=?').bind(charge.payment_intent).first<Order>();
+  if(!order || order.currency!=='usd' || order.amount_cents!==charge.amount ||
+     order.provider_payment_intent_id!==charge.payment_intent) return response(409);
+  if(order.status!=='refunded' && !['paid','in_progress','delivered','revision','completed'].includes(order.status)) return response(409);
+  // A verified duplicate full-refund notification must never create a second audit.
+  if(order.status==='refunded')return response(200);
+  const results=await db.batch([
+   db.prepare("INSERT OR IGNORE INTO payment_webhook_events(provider,provider_event_id,event_type,order_id) VALUES('stripe',?,?,?)").bind(event.id,event.type,order.id),
+   db.prepare("UPDATE service_orders SET status='refunded',updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=? AND status=? AND provider_payment_intent_id=? AND EXISTS(SELECT 1 FROM payment_webhook_events WHERE provider='stripe' AND provider_event_id=? AND processed_at IS NULL)")
+    .bind(order.id,order.status,charge.payment_intent,event.id),
+   db.prepare("INSERT INTO commerce_events(id,entity_type,entity_id,event_type,old_status,new_status,actor,details_json) SELECT ?,'order',?,'refunded',?,'refunded','stripe',? WHERE changes()=1")
+    .bind(crypto.randomUUID(),order.id,order.status,JSON.stringify({stripeEventId:event.id,chargeId:charge.id})),
+   db.prepare("UPDATE payment_webhook_events SET processed_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE provider='stripe' AND provider_event_id=? AND processed_at IS NULL")
+    .bind(event.id)
+  ]);
+  return results[1]?.meta?.changes===1 || order.status==='refunded' ? response(200) : response(409);
+ } catch { return response(503); }
+}
+
 export const onRequestPost:PagesFunction<Env>=async({request,env})=>{
  if(env.STRIPE_CHECKOUT_TEST_ENABLED!=='true'||!env.INQUIRIES_DB||!env.STRIPE_WEBHOOK_SECRET?.startsWith('whsec_'))return response(503);
  const body=await request.text();
@@ -28,9 +66,10 @@ export const onRequestPost:PagesFunction<Env>=async({request,env})=>{
  let event:Event;
  try{event=JSON.parse(body) as Event;}catch{return response(400);}
  if(!event||typeof event!=='object'||Array.isArray(event)||typeof event.id!=='string'||!event.id.startsWith('evt_')||event.livemode!==false||typeof event.type!=='string'||!event.type)return response(400);
+ if(event.type==='charge.refunded')return processFullRefund(event,env.INQUIRIES_DB);
  if(!['checkout.session.completed','checkout.session.async_payment_succeeded'].includes(event.type))return response(200);
  const session=event.data?.object;
- if(typeof session?.id!=='string'||!session.id.startsWith('cs_test_')||session.livemode!==false||session.payment_status!=='paid'||typeof session.amount_total!=='number'||!Number.isSafeInteger(session.amount_total)||session.amount_total<1||session.currency!=='usd'||typeof session.payment_intent!=='string'||!session.payment_intent.startsWith('pi_')||!session.client_reference_id||session.metadata?.order_id!==session.client_reference_id)return response(400);
+ if(typeof session?.id!=='string'||!session.id.startsWith('cs_test_')||session.livemode!==false||session.payment_status!=='paid'||(!Number.isSafeInteger(session.amount_total)||(session.amount_total??0)<1)||session.currency!=='usd'||typeof session.payment_intent!=='string'||!session.payment_intent.startsWith('pi_')||!session.client_reference_id||session.metadata?.order_id!==session.client_reference_id)return response(400);
  try{
   const db=env.INQUIRIES_DB;
   const order=await db.prepare('SELECT id,status,amount_cents,currency,provider_checkout_session_id,provider_payment_intent_id FROM service_orders WHERE id=?').bind(session.client_reference_id).first<Order>();
