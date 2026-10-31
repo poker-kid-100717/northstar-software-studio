@@ -109,6 +109,6 @@ jobs:
       - name: Enforce disabled live-payment invariants with synthetic credentials
         run: node --test ../tests/live-payment-gates.test.mjs
       - name: Inquiry and Stripe security/idempotency tests
-        run: node --test ../tests/inquiries.test.mjs ../tests/stripe-webhook.test.mjs ../tests/stripe-refund.test.mjs
+        run: node --test ../tests/inquiries.test.mjs ../tests/stripe-webhook.test.mjs ../tests/stripe-refund.test.mjs ../tests/orders-readonly.test.mjs
       - name: Production build
         run: npm run build -- --configuration production
