@@ -108,7 +108,7 @@ jobs:
         run: npx tsc -p tsconfig.functions.json
       - name: Enforce disabled live-payment invariants with synthetic credentials
         run: node --test ../tests/live-payment-gates.test.mjs
-      - name: Inquiry reliability and security tests
-        run: node --test ../tests/inquiries.test.mjs
+      - name: Inquiry and Stripe security/idempotency tests
+        run: node --test ../tests/inquiries.test.mjs ../tests/stripe-webhook.test.mjs
       - name: Production build
         run: npm run build -- --configuration production
