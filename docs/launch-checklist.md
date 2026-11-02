@@ -15,7 +15,7 @@ Code for the storefront, quoting, Stripe TEST checkout, webhook, refund reconcil
 
 ## B. Evidence runs (agent runs steps 1-3, 5-6 once A1-A4 are done; steps 4 and 7 need the owner)
 
-1. Trigger `staging-e2e-acceptance.yml`; capture inquiry → admin read-back → quote acceptance. 
+1. Trigger `staging-e2e-acceptance.yml` manually with `complete_test_payment=true` (the payment job is skipped by default); capture inquiry → admin read-back → quote acceptance. 
 2. Complete hosted Stripe **TEST** Checkout; reconcile order, webhook event and audit row (exactly one transition).
 3. Replay the signed `checkout.session.completed` event for the staged order; confirm no second transition. Then issue a **full TEST refund of that exact staged payment** in Stripe (a generic fixture event is rejected: the handler matches payment intent, amount and currency) and verify the resulting signed `charge.refunded` delivery reconciles that order once.
 4. **Owner:** correlate the fresh notification with the Resend provider event and the recipient mailbox (the workflow only confirms Resend accepted the message; it has no provider or mailbox credentials). Record metadata only.
