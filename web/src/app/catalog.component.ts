@@ -1,6 +1,7 @@
 import { ActivatedRoute } from '@angular/router';
+import { fixSlug } from './fix-slug';
 import { CATALOG_CATEGORIES, parseCatalogCategory } from './fixiq-mapping';
-import { Component, inject } from '@angular/core';
+import { AfterViewInit, Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 
@@ -108,9 +109,9 @@ const services: Fix[] = [
       }
       <div class="catalog-grid">
         @for (fix of filtered; track fix.title) {
-          <article class="catalog-card">
+          <article class="catalog-card" [id]="'fix-'+slug(fix.title)" [class.catalog-card-target]="targetFix===slug(fix.title)">
             <div class="catalog-card-top"><span class="catalog-category">{{fix.category}}</span><span class="catalog-price">&#36;{{fix.price}}</span></div>
-            <h3>{{fix.title}}</h3>
+            <h3>{{fix.title}} <a class="catalog-permalink" [routerLink]="['/instant-fixes']" [queryParams]="{fix:slug(fix.title)}" [attr.aria-label]="'Link to '+fix.title">#</a></h3>
             <p class="catalog-problem">“{{fix.problem}}”</p>
             <div class="catalog-card-body"><p><strong>What you get</strong>{{fix.outcome}}</p><p><strong>Defined scope</strong>{{fix.scope}}</p></div>
             <div class="catalog-card-footer"><span>{{fix.tier}} · Scope approval required</span><a class="button primary" [routerLink]="['/consultation']" [queryParams]="{service:fix.title,price:fix.price}">Request this fix →</a></div>
@@ -122,7 +123,7 @@ const services: Fix[] = [
     </section>
   `
 })
-export class CatalogComponent {
+export class CatalogComponent implements AfterViewInit {
   readonly services=services;
   readonly tiers=[{label:'All prices',value:'All'},{label:'$30 · Quick',value:'Quick Fixes'},{label:'$50 · Targeted',value:'Targeted Fixes'},{label:'$100 · Advanced',value:'Advanced Fixes'}];
   readonly categories:readonly string[]=CATALOG_CATEGORIES;
@@ -131,5 +132,8 @@ export class CatalogComponent {
     const q=this.query.trim().toLowerCase();
     return this.services.filter(f=>(this.tier==='All'||f.tier===this.tier)&&(this.category==='All'||f.category===this.category)&&(!q||[f.title,f.problem,f.outcome,f.scope,f.category,f.tier].join(' ').toLowerCase().includes(q)));
   }
+  readonly slug=fixSlug;
+  readonly targetFix:string=(inject(ActivatedRoute).snapshot.queryParamMap.get('fix')??'').slice(0,120);
+  ngAfterViewInit(){if(this.targetFix)setTimeout(()=>document.getElementById('fix-'+this.targetFix)?.scrollIntoView({block:'center'}));}
   clear(){this.query='';this.tier='All';this.category='All';}
 }
