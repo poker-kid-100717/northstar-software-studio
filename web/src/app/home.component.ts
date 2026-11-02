@@ -1,6 +1,7 @@
 import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { catalogCategoryFor } from './fixiq-mapping';
 
 type Category = 'integration' | 'automation' | 'data' | 'application' | 'unsure';
 type Impact = 'sales' | 'operations' | 'minor';
@@ -65,7 +66,7 @@ interface Guidance { title: string; checks: string[]; tier: string; note: string
           <h4>What to check first</h4>
           <ol>@for (check of result.checks; track check) { <li>{{ check }}</li> }</ol>
           <p class="fineprint">This is rules-based triage, not an AI diagnosis or a verified root cause. No systems or files have been inspected. Final scope and price require human review.</p>
-          <div class="actions"><a class="button primary" routerLink="/instant-fixes">Explore available fixes →</a><button type="button" class="button secondary" (click)="reset()">Start over</button></div>
+          <div class="actions"><a class="button primary" routerLink="/instant-fixes" [queryParams]="catalogParams">Explore {{ catalogParams.category ? catalogParams.category + ' fixes' : 'available fixes' }} →</a><button type="button" class="button secondary" (click)="reset()">Start over</button></div>
         </section>
       }
     </section>
@@ -87,6 +88,7 @@ export class HomeComponent {
   category: Category = 'unsure';
   impact: Impact = 'operations';
   result: Guidance | null = null;
+  catalogParams: { category?: string } = {};
 
   assess(): void {
     if (this.problem.trim().length < 15) return;
@@ -103,6 +105,8 @@ export class HomeComponent {
       unsure: { title: 'General software troubleshooting', tier: 'Scope review required', checks: ['Identify what stopped working and when.', 'Capture the error without secrets or customer information.', 'Document the business impact and last known working state.'], note: 'More detail is needed to choose a repair category.' }
     };
     this.result = guidance[detected];
+    const mapped = catalogCategoryFor(detected);
+    this.catalogParams = mapped === 'All' ? {} : { category: mapped };
   }
   reset(): void { this.result = null; this.problem = ''; this.category = 'unsure'; this.impact = 'operations'; }
 }
