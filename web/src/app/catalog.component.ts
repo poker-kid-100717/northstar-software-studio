@@ -1,4 +1,6 @@
-import { Component } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
+import { CATALOG_CATEGORIES, parseCatalogCategory } from './fixiq-mapping';
+import { Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 
@@ -123,8 +125,8 @@ const services: Fix[] = [
 export class CatalogComponent {
   readonly services=services;
   readonly tiers=[{label:'All prices',value:'All'},{label:'$30 · Quick',value:'Quick Fixes'},{label:'$50 · Targeted',value:'Targeted Fixes'},{label:'$100 · Advanced',value:'Advanced Fixes'}];
-  readonly categories=['All','Websites & forms','APIs & integrations','Data & spreadsheets','Code & .NET','Automation & deployment'];
-  query=''; tier='All'; category='All';
+  readonly categories:readonly string[]=CATALOG_CATEGORIES;
+  query=''; tier='All'; category:string=parseCatalogCategory(inject(ActivatedRoute).snapshot.queryParamMap.get('category'));
   get filtered():Fix[] {
     const q=this.query.trim().toLowerCase();
     return this.services.filter(f=>(this.tier==='All'||f.tier===this.tier)&&(this.category==='All'||f.category===this.category)&&(!q||[f.title,f.problem,f.outcome,f.scope,f.category,f.tier].join(' ').toLowerCase().includes(q)));
