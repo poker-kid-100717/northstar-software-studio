@@ -7,20 +7,21 @@ Code for the storefront, quoting, Stripe TEST checkout, webhook, refund reconcil
 | # | Action | Where | Closes / unblocks |
 |---|--------|-------|-------------------|
 | 1 | Approve the two waiting runs for the protected `northstar-staging` environment: [Access diagnostic](https://github.com/poker-kid-100717/northstar-software-studio/actions/runs/41266882993) and [Pages/D1 isolation check](https://github.com/poker-kid-100717/northstar-software-studio/actions/runs/41266926702) | GitHub → Actions → run → Review deployments | #111 prerequisites |
-| 2 | Create or verify the **staging Cloudflare Access application** covering `/admin`, `/admin/*`, `/api/admin`, `/api/admin/*` (owner email only; keep `/api/stripe/webhook` and public routes outside it) | Cloudflare Zero Trust | #111, #57 |
+| 2 | Create or verify the **staging Cloudflare Access application** covering `/admin`, `/admin/*`, `/api/admin`, `/api/admin/*` (owner email only; keep `/api/stripe/webhook` and public routes outside it). A new app has a new audience: update the **Preview-only** `CF_ACCESS_AUD` and redeploy Preview, and refresh `STAGING_CF_ACCESS_JWT`, before any acceptance run (see `configure-northstar-owner-access.yml`) | Cloudflare Zero Trust, Pages Preview settings | #111 |
 | 3 | Add `charge.refunded` to the **TEST** Stripe webhook for `/api/stripe/webhook` | Stripe dashboard (test mode) | refund acceptance (#82) |
-| 4 | Set protected-environment secrets: `STAGING_CF_ACCESS_JWT`, `STAGING_TURNSTILE_TEST_TOKEN`, a freshly seeded single-use `STAGING_QUOTE_TOKEN`, `NORTHSTAR_STAGING_URL` | GitHub → Settings → Environments → `northstar-staging` | staging E2E |
+| 4 | In the `northstar-staging` environment set **secrets** `STAGING_CF_ACCESS_JWT` and `STAGING_TURNSTILE_TEST_TOKEN`, and the **variable** `NORTHSTAR_STAGING_URL` (`https://staging.northstar-software-studio.pages.dev`). The test creates its own one-time quote token; no quote-token secret is needed | GitHub → Settings → Environments → `northstar-staging` | staging E2E |
 | 5 | Decide fulfillment, refund, privacy-retention and support policies (#38, #64, #63) | docs / owner | #84 review item |
 | 6 | Explicit written sign-off before enabling any production payment flag (see `docs/live-payment-activation-gate.md`) | owner | #84, #113 |
 
 ## B. Evidence runs (agent can run once A1-A4 are done)
 
-1. Trigger `staging-e2e-acceptance.yml`; capture inquiry → admin read-back → quote acceptance. Reseed the quote token before each rerun.
+1. Trigger `staging-e2e-acceptance.yml`; capture inquiry → admin read-back → quote acceptance. 
 2. Complete hosted Stripe **TEST** Checkout; reconcile order, webhook event and audit row (exactly one transition).
 3. Send a signed duplicate webhook; confirm no second transition. Send `charge.refunded`; confirm refund reconciliation.
 4. Correlate a fresh notification with Resend delivery and mailbox receipt (metadata only in artifacts).
 5. Run the read-only production schema and smoke gates ([production acceptance](production-acceptance.md)). Never point staging tests at production.
-6. Record run links and dates on #111, then close it.
+6. Document a cleanup/retention approach for the synthetic staging records the runs created (`docs/p0-staging-readiness.md`).
+7. Record run links, dates and the cleanup evidence on #111, then close it only when every gate passes.
 
 ## C. Remaining code work
 
@@ -35,4 +36,4 @@ Not code. Define one ICP, publish the scoped offers, instrument the funnel, buil
 
 | Likely closable after evidence in B | Needs owner decision | Keep open |
 |---|---|---|
-| #57, #58-#62, #78-#83 (verify each against merged code first) | #38, #63, #64, #84 | #113, #66, #39 |
+| #58-#62, #78-#83 (verify each against merged code first) | #38, #63, #64, #84 | #113, #66, #39, #57 (needs anonymous and non-owner browser checks against **production** per `web/ADMIN_SECURITY_VERIFICATION.md`) |
