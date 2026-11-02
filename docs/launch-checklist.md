@@ -13,19 +13,20 @@ Code for the storefront, quoting, Stripe TEST checkout, webhook, refund reconcil
 | 5 | Decide fulfillment, refund, privacy-retention and support policies (#38, #64, #63) | docs / owner | #84 review item |
 | 6 | Explicit written sign-off before enabling any production payment flag (see `docs/live-payment-activation-gate.md`) | owner | #84, #113 |
 
-## B. Evidence runs (agent can run once A1-A4 are done)
+## B. Evidence runs (agent runs steps 1-3, 5-6 once A1-A4 are done; steps 4 and 7 need the owner)
 
 1. Trigger `staging-e2e-acceptance.yml`; capture inquiry → admin read-back → quote acceptance. 
 2. Complete hosted Stripe **TEST** Checkout; reconcile order, webhook event and audit row (exactly one transition).
-3. Send a signed duplicate webhook; confirm no second transition. Send `charge.refunded`; confirm refund reconciliation.
-4. Correlate a fresh notification with Resend delivery and mailbox receipt (metadata only in artifacts).
+3. Replay the signed `checkout.session.completed` event for the staged order; confirm no second transition. Then issue a **full TEST refund of that exact staged payment** in Stripe (a generic fixture event is rejected: the handler matches payment intent, amount and currency) and verify the resulting signed `charge.refunded` delivery reconciles that order once.
+4. **Owner:** correlate the fresh notification with the Resend provider event and the recipient mailbox (the workflow only confirms Resend accepted the message; it has no provider or mailbox credentials). Record metadata only.
 5. Run the read-only production schema and smoke gates ([production acceptance](production-acceptance.md)). Never point staging tests at production.
-6. Document a cleanup/retention approach for the synthetic staging records the runs created (`docs/p0-staging-readiness.md`).
-7. Record run links, dates and the cleanup evidence on #111, then close it only when every gate passes.
+6. Run anonymous and non-owner identity checks against staging `/admin` and `/api/admin` (expect redirect or 403, no JSON); the E2E only exercises the owner JWT. Repeat after any Access audience change.
+7. Document a cleanup/retention approach for the synthetic staging records the runs created (`docs/p0-staging-readiness.md`).
+8. Record run links, dates and the cleanup evidence on #111, then close it only when every gate passes.
 
 ## C. Remaining code work
 
-- #25: stable service-ID mapping and per-service deep links (category mapping from FixIQ shipped).
+- #25: FixIQ category mapping (#172) and stable service slugs with `?fix=` deep links (#174) are merged. Verify in a browser and close, or name any scope still missing.
 - #21 / #22: authoritative backend catalog and service-to-order traceability, only if the .NET track is to be hosted. The storefront does not need it.
 
 ## D. Commercial validation (#113)
