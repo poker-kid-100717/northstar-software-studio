@@ -13,11 +13,11 @@ interface Guidance { title: string; checks: string[]; tier: string; note: string
   template: `
     <section class="hero">
       <div class="hero-content">
-      <div class="hero-copy"><p class="eyebrow">YOUR IDEAS · YOUR WAY</p>
-      <h1>You imagine it.<br><em>We help you build it.</em></h1>
-      <p class="lead">Whether you're starting with a rough idea, improving something you've already built, or creating something entirely your own, we'll help you turn your vision into working software.</p>
-      <div class="actions"><a class="button primary" routerLink="/consultation">Tell us your idea →</a><a class="button hero-outline" routerLink="/instant-fixes">View Instant Fixes</a></div>
-      <div class="hero-benefits"><span>✦ Your vision first</span><span>⬡ Clear expectations</span><span>♡ Build together</span></div></div>
+      <div class="hero-copy"><p class="eyebrow">KUSTIVO · DIGITAL CRAFTSMANSHIP</p>
+      <h1>Your vision.<br><em>Expertly engineered.</em></h1>
+      <p class="lead">Kustivo builds thoughtful websites, fixes what slows your business down, and crafts custom software and automation around the way you work.</p>
+      <div class="actions"><a class="button primary" routerLink="/consultation">Start your project →</a><a class="button hero-outline" routerLink="/instant-fixes">View Instant Fixes</a></div>
+      <div class="hero-benefits"><span>✦ Crafted for your business</span><span>⬡ Clear scope & pricing</span><span>♡ Human-led engineering</span></div></div>
       <div class="hero-visual" aria-label="Illustration of a software solution"><div class="code-window"><div class="code-tabs">C# &nbsp; · &nbsp; .NET &nbsp; · &nbsp; Angular &nbsp; · &nbsp; SQL &nbsp; · &nbsp; AI</div><pre>public class SolutionService
 &#123;
   public async Task&lt;Result&gt;
@@ -29,9 +29,9 @@ interface Guidance { title: string; checks: string[]; tier: string; note: string
 &#125;</pre></div><div class="hero-status"><strong>✓ &nbsp; Built around your goals</strong><span>Listen to your vision</span><span>Build collaboratively</span><span>Make it yours</span></div></div></div>
     </section>
     <section class="services-overview section" id="services">
-      <p class="eyebrow">WHAT WE DO</p><h2>Whatever you're imagining, let's explore it.</h2>
+      <p class="eyebrow">WHAT KUSTIVO DOES</p><h2>We build it. We improve it. We make it yours.</h2>
       <div class="cards">
-        <article class="card service-tile"><div class="service-icon" aria-hidden="true">⌘</div><h3>Custom Software Development</h3><p>Have an idea for an app, a tool, or a better way to work? We can shape and build it together, using technology that fits your goals.</p><a routerLink="/consultation">Discuss a project →</a></article>
+        <article class="card service-tile"><div class="service-icon" aria-hidden="true">⌘</div><h3>Websites & Custom Software</h3><p>From a starter website to a purpose-built application, we create practical digital experiences tailored to your business.</p><a routerLink="/consultation">Discuss a project →</a></article>
         <article class="card service-tile"><div class="service-icon" aria-hidden="true">ϟ</div><h3>Instant Fixes</h3><p>Small, defined-scope code, data, and integration issues. Transparent $25, $50, and $100 service tiers.</p><a routerLink="/instant-fixes">Browse fixes →</a></article>
         <article class="card service-tile"><div class="service-icon" aria-hidden="true">✧</div><h3>Consulting &amp; Project Inquiries</h3><p>No technical vocabulary required. Tell us what you want to create, where you're starting, and how involved you'd like to be.</p><a routerLink="/consultation">Get in touch →</a></article>
       </div>
